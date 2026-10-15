@@ -1,0 +1,17 @@
+{
+  "udp_port": 9999,
+  "probe_count": 10,
+  "timeout": 2.0,
+  "payload_size": 64,
+  "sdn_controller_type": "ryu",
+  "controller_ip": "127.0.0.1",
+  "ryu_port": 8080,
+  "opendaylight_port": 8181,
+  "username": "admin",
+  "password": "adminpassword",
+  "thresholds": {
+    "degraded_rtt_ms": 50.0,
+    "degraded_packet_loss_percent": 0.0,
+    "failed_packet_loss_percent": 50.0
+  }
+}
