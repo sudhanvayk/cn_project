@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-Measurement and Topology Correlation Module
+Measurement and Topology Correlation Module (with Failure Detection & Path Comparison)
 Part of the Socket-Based Network Diagnostic and Path Analysis Tool for SDN.
 
 This module correlates active UDP measurement metrics (RTT and packet loss)
-with discovered SDN network topology data. It resolves end-hosts, finds all
-candidate forwarding paths in the SDN fabric, classifies path health status
-(HEALTHY_PATH, DEGRADED_PATH, FAILED_PATH), analyzes alternative routes,
-and produces a structured correlation report.
+with discovered SDN network topology data. It classifies path health
+(HEALTHY_PATH, DEGRADED_PATH, FAILED_PATH), identifies failure reasons,
+determines the selected shortest path, ranks alternative candidate paths
+by hop count, and produces actionable rerouting recommendations.
 """
 
 import argparse
@@ -55,7 +55,7 @@ def classify_path_health(summary, thresholds):
     - HEALTHY_PATH: Packet loss <= 0% and mean RTT <= degraded_rtt_ms
 
     Returns:
-        tuple (str, str): (classification_label, reason_description)
+        tuple (str, str): (path_status, failed_path_reason)
     """
     loss_pct = summary.get("packet_loss_percent", 100.0)
     mean_rtt = summary.get("mean_rtt_ms")
@@ -86,13 +86,14 @@ def classify_path_health(summary, thresholds):
 
     return (
         "HEALTHY_PATH",
-        f"Optimal network conditions: 0% loss and mean RTT ({mean_rtt if mean_rtt else 0.0:.2f} ms) within nominal limits."
+        "None (Path is healthy and operating within nominal thresholds)"
     )
 
 
 def correlate(diag_file, topo_file, source_node, config_file=DEFAULT_CONFIG_PATH, output_file=DEFAULT_REPORT_FILE):
     """
-    Correlate diagnostic measurements with SDN topology graph.
+    Correlate diagnostic measurements with SDN topology graph, perform failure
+    detection, and rank alternative routes.
     """
     cfg = load_config(config_file)
     thresholds = cfg["thresholds"]
@@ -105,6 +106,8 @@ def correlate(diag_file, topo_file, source_node, config_file=DEFAULT_CONFIG_PATH
 
     target_ip = diag_data.get("target_ip")
     summary = diag_data.get("summary", {})
+    loss_pct = summary.get("packet_loss_percent", 100.0)
+    mean_rtt = summary.get("mean_rtt_ms")
 
     # Load SDN topology graph
     if not os.path.exists(topo_file):
@@ -112,107 +115,142 @@ def correlate(diag_file, topo_file, source_node, config_file=DEFAULT_CONFIG_PATH
     graph = SDNTopologyGraph()
     graph.load_from_file(topo_file)
 
-    # Resolve nodes
-    src_canonical = graph.resolve_node(source_node)
-    dst_canonical = graph.resolve_node(target_ip)
-
-    if not src_canonical:
-        src_canonical = source_node
-
-    if not dst_canonical:
-        # Check if there's any host matching IP or default to h2
-        print(f"[WARN] Destination IP {target_ip} not directly listed in topology nodes. Using as endpoint.", file=sys.stderr)
-        dst_canonical = target_ip
+    # Resolve canonical nodes
+    src_canonical = graph.resolve_node(source_node) or source_node
+    dst_canonical = graph.resolve_node(target_ip) or target_ip
 
     # Find candidate paths in SDN topology
     candidate_paths = graph.find_all_simple_paths(src_canonical, dst_canonical)
-    path_comparison = graph.compare_paths(candidate_paths)
+    comparison_data = graph.compare_paths(candidate_paths)
 
-    # Classify health status
-    classification, reason = classify_path_health(summary, thresholds)
+    selected_shortest = comparison_data.get("selected_shortest_path")
+    alternative_paths = comparison_data.get("alternative_paths", [])
+    path_comparison_ranking = comparison_data.get("comparison", [])
+
+    # Classify health status and failed-path reason
+    path_status, failed_path_reason = classify_path_health(summary, thresholds)
 
     report = {
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "source": src_canonical,
-        "destination_ip": target_ip,
+        "path_status": path_status,
+        "source_node": src_canonical,
         "destination_node": dst_canonical,
-        "path_status": classification,
-        "reason": reason,
-        "metrics": {
+        "destination_ip": target_ip,
+        "candidate_paths": candidate_paths,
+        "selected_shortest_path": selected_shortest,
+        "failed_path_reason": failed_path_reason,
+        "packet_loss_percentage": loss_pct,
+        "mean_rtt": mean_rtt,
+        "alternative_paths": alternative_paths,
+        "path_comparison": path_comparison_ranking,
+        "detailed_metrics": {
             "probes_sent": summary.get("sent"),
             "probes_received": summary.get("received"),
             "probes_lost": summary.get("lost"),
-            "packet_loss_percent": summary.get("packet_loss_percent"),
+            "packet_loss_percentage": loss_pct,
             "min_rtt_ms": summary.get("min_rtt_ms"),
             "max_rtt_ms": summary.get("max_rtt_ms"),
-            "mean_rtt_ms": summary.get("mean_rtt_ms"),
+            "mean_rtt_ms": mean_rtt,
             "median_rtt_ms": summary.get("median_rtt_ms"),
             "stddev_rtt_ms": summary.get("stddev_rtt_ms")
         },
-        "thresholds_used": thresholds,
-        "candidate_paths": candidate_paths,
-        "path_comparison": path_comparison
+        "thresholds": thresholds
     }
 
-    print_correlation_report(report)
+    print_terminal_report(report)
 
     if output_file:
         try:
             with open(output_file, "w", encoding="utf-8") as f:
                 json.dump(report, f, indent=2)
-            print(f"\n[INFO] Correlation report saved to: {output_file}")
+            print(f"[INFO] Final correlation report saved to: {output_file}")
         except Exception as e:
             print(f"[ERROR] Failed to save {output_file}: {e}", file=sys.stderr)
 
     return report
 
 
-def print_correlation_report(report):
-    """Print readable diagnostic and correlation report to terminal."""
+def print_terminal_report(report):
+    """Print high-clarity terminal diagnostic report with clear status banner."""
     status = report.get("path_status", "UNKNOWN")
-    metrics = report.get("metrics", {})
-    comparison = report.get("path_comparison", {})
+    reason = report.get("failed_path_reason")
+    src = report.get("source_node")
+    dst = report.get("destination_node")
+    dst_ip = report.get("destination_ip")
+    loss = report.get("packet_loss_percentage", 0.0)
+    mean_rtt = report.get("mean_rtt")
+    shortest = report.get("selected_shortest_path")
+    alternatives = report.get("alternative_paths", [])
+    ranking = report.get("path_comparison", [])
 
-    print("\n" + "=" * 70)
-    print("               SDN PATH & MEASUREMENT CORRELATION REPORT")
-    print("=" * 70)
-    print(f" Source Node:        {report.get('source')}")
-    print(f" Destination Node:   {report.get('destination_node')} ({report.get('destination_ip')})")
-    print(f" Path Status:        {status}")
-    print(f" Status Reason:      {report.get('reason')}")
-    print("-" * 70)
-    print(" Diagnostic Metrics:")
-    print(f"   Packet Loss:      {metrics.get('packet_loss_percent', 0.0):.2f}% "
-          f"({metrics.get('probes_lost', 0)}/{metrics.get('probes_sent', 0)} probes lost)")
-    mean_rtt = metrics.get('mean_rtt_ms')
-    print(f"   Mean Latency:     {f'{mean_rtt:.2f} ms' if mean_rtt is not None else 'N/A'}")
-    jitter = metrics.get('stddev_rtt_ms')
-    print(f"   Jitter (StdDev):  {f'{jitter:.2f} ms' if jitter is not None else 'N/A'}")
-    print("-" * 70)
+    banner_symbol = "[●]"
+    status_label = f"*** {status} ***"
+    if status == "HEALTHY_PATH":
+        banner_symbol = "[✔ HEALTHY]"
+    elif status == "DEGRADED_PATH":
+        banner_symbol = "[▲ DEGRADED]"
+    elif status == "FAILED_PATH":
+        banner_symbol = "[✖ FAILED]"
 
-    total_paths = comparison.get("total_paths", 0)
-    print(f" SDN Candidate Paths Discovered: {total_paths}")
-
-    if total_paths > 0:
-        primary = comparison.get("primary_path", {})
-        print(f"   Primary Route:    {primary.get('path_str')} ({primary.get('hop_count')} hops)")
-
-        alts = comparison.get("alternative_paths", [])
-        if alts:
-            print("\n Alternative Routes Available:")
-            for alt in alts:
-                print(f"   [Rank {alt['rank']}] {alt['path_str']} ({alt['hop_count']} hops, +{alt['extra_hops']} extra)")
-        else:
-            print("   No alternate topology paths available between these nodes.")
+    print("\n" + "=" * 72)
+    print(f" {banner_symbol:<14} SDN NETWORK PATH DIAGNOSTIC & CORRELATION REPORT")
+    print("=" * 72)
+    print(f" PATH STATUS:             {status}")
+    print(f" FAILED-PATH REASON:      {reason}")
+    print("-" * 72)
+    print(f" Source Node:             {src}")
+    print(f" Destination Node:        {dst} (IP: {dst_ip})")
+    print(f" Packet Loss:             {loss:.2f}%")
+    print(f" Mean RTT:                {f'{mean_rtt:.2f} ms' if mean_rtt is not None else 'N/A'}")
+    if shortest:
+        print(f" Selected Shortest Path:  {shortest.get('path_str')} ({shortest.get('hop_count')} hops)")
     else:
-        print("   No path found in current SDN topology between source and destination.")
+        print(" Selected Shortest Path:  No path discovered")
+    print("-" * 72)
 
-    print("=" * 70)
+    # Path comparison ranked by hop count
+    print(f" PATH COMPARISON RANKED BY HOP COUNT ({len(ranking)} total):")
+    if ranking:
+        print(f" {'Rank':<6} {'Role':<20} {'Hops':<8} {'Extra':<8} {'Route'}")
+        print(" " + "-" * 70)
+        for row in ranking:
+            rank = row.get("rank")
+            role = row.get("role")
+            hops = row.get("hop_count")
+            extra = f"+{row.get('extra_hops')}" if row.get('extra_hops') > 0 else "0"
+            route = row.get("path_str")
+            print(f" {rank:<6} {role:<20} {hops:<8} {extra:<8} {route}")
+    else:
+        print("  No candidate paths discovered in current topology.")
+
+    # Alternative paths & recommendations
+    print("-" * 72)
+    if status == "FAILED_PATH":
+        if alternatives:
+            best_alt = alternatives[0]
+            print(f" [ACTION REQUIRED] Primary path has failed!")
+            print(f" -> Recommended Alternative: Rank {best_alt['rank']} ({best_alt['path_str']})")
+            print(f" -> Cost Penalty: +{best_alt['extra_hops']} extra hop(s)")
+            print(" -> Suggested Action: Direct SDN Controller to update OpenFlow flow rules to alternative route.")
+        else:
+            print(" [CRITICAL] Primary path failed and NO alternative topology paths exist.")
+            print(" -> Suggested Action: Check physical links or controller flow tables.")
+    elif status == "DEGRADED_PATH":
+        if alternatives:
+            best_alt = alternatives[0]
+            print(f" [WARNING] Primary path is degraded (latency/loss threshold exceeded).")
+            print(f" -> Feasible Failover: Rank {best_alt['rank']} ({best_alt['path_str']}) (+{best_alt['extra_hops']} hops)")
+            print(" -> Suggested Action: Shift delay-sensitive traffic to alternative route.")
+        else:
+            print(" [WARNING] Primary path is degraded. No alternative topology paths available.")
+    else:
+        print(" [OK] Network path operating within nominal parameters. No rerouting needed.")
+    print("=" * 72 + "\n")
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Correlate UDP Diagnostic Metrics with SDN Topology Paths."
+        description="Correlate UDP Diagnostic Metrics with SDN Topology and Analyze Alternative Paths."
     )
     parser.add_argument(
         "-d", "--diag",

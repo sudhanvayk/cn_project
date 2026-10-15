@@ -147,12 +147,12 @@ class SDNTopologyGraph:
             paths (list of list of str): Sorted list of simple paths.
 
         Returns:
-            dict: Detailed comparison metrics including primary and alternative routes.
+            dict: Detailed comparison metrics including selected shortest path and alternative routes.
         """
         if not paths:
             return {
                 "total_paths": 0,
-                "primary_path": None,
+                "selected_shortest_path": None,
                 "alternative_paths": [],
                 "comparison": []
             }
@@ -173,7 +173,7 @@ class SDNTopologyGraph:
 
         comparison_table = [{
             "rank": 1,
-            "role": "PRIMARY / SHORTEST",
+            "role": "SELECTED_SHORTEST",
             "path": primary,
             "path_str": " -> ".join(primary),
             "hop_count": primary_hops,
@@ -191,7 +191,7 @@ class SDNTopologyGraph:
 
         return {
             "total_paths": len(paths),
-            "primary_path": {
+            "selected_shortest_path": {
                 "path": primary,
                 "path_str": " -> ".join(primary),
                 "hop_count": primary_hops
