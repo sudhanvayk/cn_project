@@ -23,20 +23,20 @@ import logging
 import os
 import sys
 
-from diagnostic_client import run_diagnostics_single, run_diagnostics_multi, load_config as load_client_config
-from probe_server import start_server, load_default_config as load_server_config
-from path_analysis import run_path_analysis, print_path_table
-from sdn_topology import discover_topology, watch_topology, print_topology_summary, load_config as load_topo_config
-from topology_graph import SDNTopologyGraph, print_path_comparison
 from correlate import (
-    correlate as run_correlation,
+    aggregate_suspected_links,
     analyze_port_stats_deltas,
     analyze_segment_probes,
     analyze_topology_liveness,
-    aggregate_suspected_links
+    correlate as run_correlation,
 )
-from reroute_helper import generate_flow_entries, apply_reroute
+from diagnostic_client import load_config as load_client_config, run_diagnostics_multi, run_diagnostics_single
+from path_analysis import print_path_table, run_path_analysis
+from probe_server import load_default_config as load_server_config, start_server
 from report_generator import build_report
+from reroute_helper import apply_reroute, generate_flow_entries
+from sdn_topology import discover_topology, load_config as load_topo_config, print_topology_summary, watch_topology
+from topology_graph import SDNTopologyGraph, print_path_comparison
 
 VERSION = "1.0.0"
 

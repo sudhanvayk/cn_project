@@ -18,6 +18,7 @@ import logging
 import os
 import sys
 import time
+
 import requests
 from requests.auth import HTTPBasicAuth
 
@@ -344,8 +345,8 @@ def diff_topologies(old_topo: dict, new_topo: dict) -> list:
         if nid not in new_node_ids:
             changes.append(f"NODE REMOVED: {nid} ({old_node_ids[nid].get('type')})")
 
-    old_links = {tuple(sorted([l["source"], l["destination"]])) for l in old_topo.get("links", [])}
-    new_links = {tuple(sorted([l["source"], l["destination"]])) for l in new_topo.get("links", [])}
+    old_links = {tuple(sorted([lnk["source"], lnk["destination"]])) for lnk in old_topo.get("links", [])}
+    new_links = {tuple(sorted([lnk["source"], lnk["destination"]])) for lnk in new_topo.get("links", [])}
 
     for link in new_links - old_links:
         changes.append(f"LINK UP: {link[0]} <---> {link[1]}")

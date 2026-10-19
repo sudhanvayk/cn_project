@@ -19,8 +19,8 @@ import re
 import sys
 import time
 
-from topology_graph import SDNTopologyGraph
 from flow_inspector import FlowInspector
+from topology_graph import SDNTopologyGraph
 
 DEFAULT_CONFIG_PATH = "config.json"
 DEFAULT_DIAG_FILE = "diagnostic_result.json"
@@ -248,7 +248,7 @@ def analyze_topology_liveness(expected_path_links: list, active_topology_links: 
     Flags links that have completely disappeared from controller active topology.
     """
     suspects = []
-    active_set = {tuple(sorted([l.get("source"), l.get("destination")])) for l in active_topology_links}
+    active_set = {tuple(sorted([lnk.get("source"), lnk.get("destination")])) for lnk in active_topology_links}
 
     for link in expected_path_links:
         src, dst = link[0], link[1]
@@ -407,7 +407,6 @@ def correlate(diag_file: str, topo_file: str, source_node: str,
 
     # Candidate paths for alternatives
     candidate_paths = graph.find_all_simple_paths(src_canonical, dst_canonical)
-    comparison_data = graph.compare_paths(candidate_paths)
 
     # 4. Classify health
     path_status, failed_path_reason = classify_path_health(summary, thresholds)
@@ -588,7 +587,7 @@ def print_terminal_report(report: dict):
         print("-" * 74)
 
     # Ranked Backup Paths
-    print(f" RANKED BACKUP PATHS (Pruned of Suspected Links):")
+    print(" RANKED BACKUP PATHS (Pruned of Suspected Links):")
     if backups:
         print(f" {'Rank':<6} {'Status':<25} {'Hops':<8} {'Extra':<8} {'Route'}")
         print(" " + "-" * 72)
@@ -605,7 +604,7 @@ def print_terminal_report(report: dict):
     print("-" * 74)
     if status in ["FAILED_PATH", "DEGRADED_PATH"]:
         if recommended:
-            print(f" [ACTION RECOMMENDED] Failover to Viable Backup Route:")
+            print(" [ACTION RECOMMENDED] Failover to Viable Backup Route:")
             print(f" -> Best Backup:  {recommended['path_str']} ({recommended['hop_count']} hops, +{recommended['extra_hops']} extra)")
             print(" -> Next Step:    Deploy backup flow rules via reroute_helper.py or SDN controller.")
         else:

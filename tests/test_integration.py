@@ -7,9 +7,11 @@ and measurement statistics on localhost.
 import socket
 import threading
 import time
+
 import pytest
-from probe_server import ThreadedUDPServer, ProbeUDPHandler
+
 from diagnostic_client import run_diagnostics_single
+from probe_server import ProbeUDPHandler, ThreadedUDPServer
 
 
 def get_free_udp_port():

@@ -15,7 +15,6 @@ import json
 import logging
 import socketserver
 import sys
-import threading
 from urllib.parse import urlparse
 
 DEFAULT_HOST = "127.0.0.1"

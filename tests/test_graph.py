@@ -3,7 +3,6 @@ Unit tests for SDNTopologyGraph BFS path enumeration, loop handling,
 disconnected graphs, and topology node resolution.
 """
 
-import pytest
 from topology_graph import SDNTopologyGraph
 
 

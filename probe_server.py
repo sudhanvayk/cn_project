@@ -88,6 +88,9 @@ class ProbeUDPHandler(socketserver.BaseRequestHandler):
         if magic != MAGIC_HEADER:
             logger.warning(f"Rejected stray packet from {client_ip}:{client_port} (invalid magic: {magic})")
             return
+        if version != PROTOCOL_VERSION:
+            logger.warning(f"Protocol version mismatch from {client_ip}:{client_port}: {version}")
+            return
 
         probe_id = payload.get("probe_id")
         seq = payload.get("seq", probe_id)
@@ -145,7 +148,7 @@ def start_server(host: str = DEFAULT_HOST, port: int = DEFAULT_PORT,
     """
     Start the multi-threaded UDP diagnostic echo server.
     """
-    logger = setup_logger(verbose)
+    setup_logger(verbose)
     server = ThreadedUDPServer((host, port), ProbeUDPHandler, drop_rate=drop_rate, delay_ms=delay_ms, verbose=verbose)
 
     print("=" * 68)

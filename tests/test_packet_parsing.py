@@ -5,6 +5,7 @@ and malformed-packet handling.
 
 import json
 import logging
+
 from probe_server import MAGIC_HEADER, PROTOCOL_VERSION, ProbeUDPHandler
 
 
@@ -30,13 +31,13 @@ def simulate_packet(raw_bytes: bytes, drop_rate: float = 0.0, delay_ms: float = 
     """Helper to run ProbeUDPHandler against raw bytes."""
     mock_socket = MockUDPSocket()
     mock_server = MockUDPServer(drop_rate=drop_rate, delay_ms=delay_ms)
-    
+
     # Instantiate handler without calling BaseRequestHandler.__init__
     handler = ProbeUDPHandler.__new__(ProbeUDPHandler)
     handler.server = mock_server
     handler.request = (raw_bytes, mock_socket)
     handler.client_address = ("127.0.0.1", 54321)
-    
+
     handler.handle()
     return mock_socket.sent_packets
 

@@ -2,7 +2,7 @@
 Unit tests for path_analysis module: traceroute and tracepath parsing.
 """
 
-from path_analysis import parse_traceroute_output, parse_tracepath_output
+from path_analysis import parse_tracepath_output, parse_traceroute_output
 
 
 def test_parse_traceroute_output_nominal():
@@ -48,7 +48,7 @@ def test_parse_traceroute_partial_loss():
 def test_parse_tracepath_output():
     sample = """
  1?: [LOCALHOST]     pmtu 1500
- 1:  192.168.1.1                                           0.450ms 
+ 1:  192.168.1.1                                           0.450ms
  2:  10.0.0.2                                              1.230ms reached
 """
     hops = parse_tracepath_output(sample)

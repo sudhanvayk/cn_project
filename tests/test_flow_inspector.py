@@ -3,9 +3,8 @@ Unit tests for FlowInspector OpenFlow flow-table path reconstruction,
 action port parsing, and fallback shortest-path determination.
 """
 
-import json
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
 from flow_inspector import FlowInspector, parse_output_port
 
 

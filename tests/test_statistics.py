@@ -3,7 +3,7 @@ Unit tests for RTT statistics, jitter calculations, and percentiles.
 """
 
 import math
-import pytest
+
 from diagnostic_client import calculate_percentile, compute_probe_statistics
 
 

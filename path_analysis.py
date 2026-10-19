@@ -12,7 +12,6 @@ fundamental SDN property that OpenFlow L2 switches do not decrement IP TTL.
 import argparse
 import json
 import logging
-import os
 import re
 import shutil
 import socket

@@ -21,12 +21,13 @@ Alternative:  h1 -> s1 -> s3 -> s2 -> h2 (4 hops)
 """
 
 import sys
+
 try:
-    from mininet.net import Mininet
-    from mininet.node import RemoteController, OVSSwitch
     from mininet.cli import CLI
-    from mininet.log import setLogLevel, info
     from mininet.link import TCLink
+    from mininet.log import info, setLogLevel
+    from mininet.net import Mininet
+    from mininet.node import OVSSwitch, RemoteController
     from mininet.topo import Topo
 except ImportError:
     print("[WARN] Mininet is not installed in the current Python environment.", file=sys.stderr)

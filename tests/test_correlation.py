@@ -6,12 +6,11 @@ failure localization evidence sources, and backup path re-ranking.
 import json
 
 from correlate import (
-    classify_path_health,
     analyze_port_stats_deltas,
     analyze_segment_probes,
     analyze_topology_liveness,
-    aggregate_suspected_links,
-    filter_and_rank_backups
+    classify_path_health,
+    filter_and_rank_backups,
 )
 
 THRESHOLDS = {

@@ -15,6 +15,7 @@ import logging
 import os
 import re
 import sys
+
 import requests
 
 from topology_graph import SDNTopologyGraph
