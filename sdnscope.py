@@ -35,6 +35,7 @@ from correlate import (
     analyze_topology_liveness,
     aggregate_suspected_links
 )
+from reroute_helper import generate_flow_entries, apply_reroute
 
 VERSION = "1.0.0"
 
@@ -339,6 +340,33 @@ def cmd_localize(args):
             print(f"[ERROR] Failed to save {args.output}: {e}", file=sys.stderr)
 
 
+def cmd_reroute(args):
+    """Deploy backup flow rules via SDN controller."""
+    report_file = validate_file_exists(args.report, "Correlation report file")
+    topo_file = validate_file_exists(args.topo, "Topology file")
+
+    with open(report_file, "r", encoding="utf-8") as f:
+        report_data = json.load(f)
+
+    backup_info = report_data.get("recommended_backup_path")
+    if not backup_info:
+        backups = [b for b in report_data.get("ranked_backup_paths", []) if b.get("is_viable")]
+        backup_info = backups[0] if backups else None
+
+    if not backup_info:
+        print("[ERROR] No viable backup route found in correlation report to deploy.", file=sys.stderr)
+        sys.exit(1)
+
+    backup_path = backup_info.get("path", [])
+    dst_ip = report_data.get("destination_ip", "10.0.0.2")
+
+    graph = SDNTopologyGraph()
+    graph.load_from_file(topo_file)
+
+    rules = generate_flow_entries(backup_path, graph, dst_ip, priority=args.priority)
+    apply_reroute(rules, controller_url=args.controller, apply_changes=args.apply, verbose=args.verbose)
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog="sdnscope",
@@ -433,6 +461,15 @@ def main():
     p_loc.add_argument("--expected-links", help="Comma-separated expected links (e.g. s1:s2,s2:h2)")
     p_loc.add_argument("-o", "--output", help="Optional output JSON filepath")
     p_loc.set_defaults(func=cmd_localize)
+
+    # 9. Subcommand: reroute
+    p_re = subparsers.add_parser("reroute", help="Deploy backup flow rules via SDN controller")
+    p_re.add_argument("-r", "--report", default="correlation_report.json", help="Correlation report JSON (default: correlation_report.json)")
+    p_re.add_argument("-t", "--topo", default="topology.json", help="Topology JSON file (default: topology.json)")
+    p_re.add_argument("-c", "--controller", default="http://127.0.0.1:8080", help="SDN controller URL")
+    p_re.add_argument("--priority", type=int, default=200, help="OpenFlow rule priority (default: 200)")
+    p_re.add_argument("--apply", action="store_true", help="Explicitly apply rules to controller (default: dry-run)")
+    p_re.set_defaults(func=cmd_reroute)
 
     args = parser.parse_args()
     args.func(args)
