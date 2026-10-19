@@ -1,0 +1,22 @@
+{
+  "target": "127.0.0.1",
+  "method": "system_tracepath",
+  "sdn_note": "In standard OpenFlow/Mininet networks, switches forward packets at Layer 2 without decrementing the IPv4 TTL field (unless explicit dec_ttl actions exist). Consequently, standard traceroute only reveals Layer 3 routed hops, not intermediate OpenFlow switches. Authoritative SDN forwarding paths are determined by querying the SDN controller flow tables (see flow_inspector.py).",
+  "hop_count": 1,
+  "hop_list": [
+    {
+      "hop": 1,
+      "ip": "127.0.0.1",
+      "rtts_ms": [
+        0.049
+      ],
+      "avg_rtt_ms": 0.049,
+      "min_rtt_ms": 0.049,
+      "max_rtt_ms": 0.049,
+      "loss_percent": 0.0,
+      "status": "REACHABLE"
+    }
+  ],
+  "status": "SUCCESS",
+  "error": null
+}
