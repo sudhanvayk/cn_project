@@ -24,6 +24,7 @@ import os
 import sys
 
 from diagnostic_client import run_diagnostics_single, run_diagnostics_multi, load_config as load_client_config
+from probe_server import start_server, load_default_config as load_server_config
 
 VERSION = "1.0.0"
 
@@ -109,6 +110,23 @@ def cmd_probe(args):
         )
 
 
+def cmd_serve(args):
+    """Start UDP diagnostic probe server."""
+    port = validate_port(args.port or load_server_config())
+    bind_ip = validate_ip(args.bind) if args.bind != "0.0.0.0" else args.bind
+    drop_rate = args.drop_rate
+    delay_ms = args.delay_ms
+
+    if not (0.0 <= drop_rate <= 1.0):
+        print(f"[ERROR] --drop-rate must be between 0.0 and 1.0, got {drop_rate}", file=sys.stderr)
+        sys.exit(1)
+    if delay_ms < 0:
+        print(f"[ERROR] --delay-ms must be non-negative, got {delay_ms}", file=sys.stderr)
+        sys.exit(1)
+
+    start_server(host=bind_ip, port=port, drop_rate=drop_rate, delay_ms=delay_ms, verbose=args.verbose)
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog="sdnscope",
@@ -131,6 +149,14 @@ def main():
     p_probe.add_argument("--burst", action="store_true", help="Send probes back-to-back with zero delay")
     p_probe.add_argument("-o", "--output", default="diagnostic_result.json", help="Output JSON filepath")
     p_probe.set_defaults(func=cmd_probe)
+
+    # 2. Subcommand: serve
+    p_serve = subparsers.add_parser("serve", help="Start UDP diagnostic probe server")
+    p_serve.add_argument("-p", "--port", type=int, help="UDP port to bind (default: 9999)")
+    p_serve.add_argument("-b", "--bind", default="0.0.0.0", help="IP address to bind (default: 0.0.0.0)")
+    p_serve.add_argument("--drop-rate", type=float, default=0.0, help="Artificial packet drop rate (0.0 to 1.0)")
+    p_serve.add_argument("--delay-ms", type=float, default=0.0, help="Artificial delay in milliseconds")
+    p_serve.set_defaults(func=cmd_serve)
 
     args = parser.parse_args()
     args.func(args)
