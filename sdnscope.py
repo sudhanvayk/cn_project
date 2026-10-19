@@ -36,6 +36,7 @@ from correlate import (
     aggregate_suspected_links
 )
 from reroute_helper import generate_flow_entries, apply_reroute
+from report_generator import build_report
 
 VERSION = "1.0.0"
 
@@ -367,6 +368,24 @@ def cmd_reroute(args):
     apply_reroute(rules, controller_url=args.controller, apply_changes=args.apply, verbose=args.verbose)
 
 
+def cmd_report(args):
+    """Generate Markdown and HTML reports from diagnosis JSON."""
+    report_file = validate_file_exists(args.report, "Correlation report file")
+    diag_file = args.diag if (args.diag and os.path.exists(args.diag)) else "diagnostic_result.json"
+
+    md_out, html_out, chart = build_report(
+        report_file=report_file,
+        diag_file=diag_file,
+        output_md=args.md,
+        output_html=args.html,
+        output_dir=args.dir
+    )
+    print(f"[SUCCESS] Markdown report generated: {md_out}")
+    print(f"[SUCCESS] HTML report generated:     {html_out}")
+    if chart:
+        print(f"[SUCCESS] Latency chart saved:       {chart}")
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog="sdnscope",
@@ -470,6 +489,15 @@ def main():
     p_re.add_argument("--priority", type=int, default=200, help="OpenFlow rule priority (default: 200)")
     p_re.add_argument("--apply", action="store_true", help="Explicitly apply rules to controller (default: dry-run)")
     p_re.set_defaults(func=cmd_reroute)
+
+    # 10. Subcommand: report
+    p_rep = subparsers.add_parser("report", help="Generate Markdown and HTML reports from diagnosis results")
+    p_rep.add_argument("-r", "--report", default="correlation_report.json", help="Correlation report JSON (default: correlation_report.json)")
+    p_rep.add_argument("-d", "--diag", default="diagnostic_result.json", help="Diagnostic results JSON (default: diagnostic_result.json)")
+    p_rep.add_argument("-m", "--md", default="report.md", help="Output Markdown filepath (default: report.md)")
+    p_rep.add_argument("-H", "--html", default="report.html", help="Output HTML filepath (default: report.html)")
+    p_rep.add_argument("--dir", default="results", help="Directory for charts and artifacts")
+    p_rep.set_defaults(func=cmd_report)
 
     args = parser.parse_args()
     args.func(args)
