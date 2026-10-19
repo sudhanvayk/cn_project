@@ -3,6 +3,8 @@ Unit tests for correlation module, health classification boundary conditions,
 failure localization evidence sources, and backup path re-ranking.
 """
 
+import json
+
 from correlate import (
     classify_path_health,
     analyze_port_stats_deltas,
@@ -124,3 +126,129 @@ def test_filter_and_rank_backups():
     assert ranked[1]["path"] == ["h1", "s1", "s4", "s2", "h2"]
     assert ranked[1]["is_viable"] is False
     assert ranked[1]["status"] == "EXCLUDED_CORRUPT_LINK"
+
+
+def test_correlate_canned_healthy(tmp_path):
+    """Verify correlate() classifies healthy canned run as HEALTHY_PATH."""
+    from correlate import correlate
+
+    diag_file = tmp_path / "diag.json"
+    topo_file = tmp_path / "topo.json"
+    out_file = tmp_path / "corr.json"
+
+    diag_data = {
+        "target_ip": "10.0.0.2",
+        "summary": {
+            "sent": 10,
+            "received": 10,
+            "lost": 0,
+            "packet_loss_percent": 0.0,
+            "mean_rtt_ms": 1.25,
+            "min_rtt_ms": 0.9,
+            "max_rtt_ms": 2.1
+        }
+    }
+    topo_data = {
+        "nodes": [
+            {"id": "h1", "type": "host", "ip": "10.0.0.1"},
+            {"id": "h2", "type": "host", "ip": "10.0.0.2"},
+            {"id": "s1", "type": "switch"},
+            {"id": "s2", "type": "switch"},
+            {"id": "s3", "type": "switch"}
+        ],
+        "links": [
+            {"source": "h1", "destination": "s1"},
+            {"source": "s1", "destination": "s2"},
+            {"source": "s1", "destination": "s3"},
+            {"source": "s3", "destination": "s2"},
+            {"source": "s2", "destination": "h2"}
+        ]
+    }
+
+    diag_file.write_text(json.dumps(diag_data))
+    topo_file.write_text(json.dumps(topo_data))
+
+    report = correlate(
+        diag_file=str(diag_file),
+        topo_file=str(topo_file),
+        source_node="h1",
+        dest_node="h2",
+        output_file=str(out_file)
+    )
+
+    assert report["path_status"] == "HEALTHY_PATH"
+    assert report["packet_loss_percentage"] == 0.0
+    assert report["suspected_links"] == []
+    assert report["active_path"]["path"] == ["h1", "s1", "s2", "h2"]
+
+
+def test_correlate_canned_failed_with_liveness(tmp_path):
+    """Verify correlate() identifies severed link and ranks clean backup."""
+    from correlate import correlate
+
+    diag_file = tmp_path / "diag.json"
+    topo_base = tmp_path / "topo_base.json"
+    topo_curr = tmp_path / "topo_curr.json"
+    out_file = tmp_path / "corr.json"
+
+    diag_data = {
+        "target_ip": "10.0.0.2",
+        "summary": {
+            "sent": 10,
+            "received": 0,
+            "lost": 10,
+            "packet_loss_percent": 100.0,
+            "mean_rtt_ms": None
+        }
+    }
+    base_topo = {
+        "nodes": [
+            {"id": "h1", "type": "host", "ip": "10.0.0.1"},
+            {"id": "h2", "type": "host", "ip": "10.0.0.2"},
+            {"id": "s1", "type": "switch"},
+            {"id": "s2", "type": "switch"},
+            {"id": "s3", "type": "switch"}
+        ],
+        "links": [
+            {"source": "h1", "destination": "s1"},
+            {"source": "s1", "destination": "s2"},
+            {"source": "s1", "destination": "s3"},
+            {"source": "s3", "destination": "s2"},
+            {"source": "s2", "destination": "h2"}
+        ]
+    }
+    # Current active topology is missing s1-s2 link
+    curr_topo = {
+        "nodes": base_topo["nodes"],
+        "links": [
+            {"source": "h1", "destination": "s1"},
+            {"source": "s1", "destination": "s3"},
+            {"source": "s3", "destination": "s2"},
+            {"source": "s2", "destination": "h2"}
+        ]
+    }
+
+    diag_file.write_text(json.dumps(diag_data))
+    topo_base.write_text(json.dumps(base_topo))
+    topo_curr.write_text(json.dumps(curr_topo))
+
+    report = correlate(
+        diag_file=str(diag_file),
+        topo_file=str(topo_base),
+        source_node="h1",
+        dest_node="h2",
+        current_topo_file=str(topo_curr),
+        output_file=str(out_file)
+    )
+
+    assert report["path_status"] == "FAILED_PATH"
+    assert report["packet_loss_percentage"] == 100.0
+    assert len(report["suspected_links"]) >= 1
+    # Check s1 <---> s2 was identified as suspect
+    suspect_pairs = [tuple(sorted(s["link"])) for s in report["suspected_links"]]
+    assert tuple(sorted(["s1", "s2"])) in suspect_pairs
+
+    # Check recommended backup
+    assert report["recommended_backup_path"] is not None
+    assert report["recommended_backup_path"]["path"] == ["h1", "s1", "s3", "s2", "h2"]
+
