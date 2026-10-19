@@ -27,6 +27,7 @@ from diagnostic_client import run_diagnostics_single, run_diagnostics_multi, loa
 from probe_server import start_server, load_default_config as load_server_config
 from path_analysis import run_path_analysis, print_path_table
 from sdn_topology import discover_topology, print_topology_summary, load_config as load_topo_config
+from topology_graph import SDNTopologyGraph, print_path_comparison
 
 VERSION = "1.0.0"
 
@@ -178,6 +179,39 @@ def cmd_topo(args):
         sys.exit(1)
 
 
+def cmd_paths(args):
+    """Find and compare simple loop-free paths in SDN graph."""
+    topo_file = validate_file_exists(args.file, "Topology file")
+    graph = SDNTopologyGraph()
+    try:
+        graph.load_from_file(topo_file)
+    except Exception as e:
+        print(f"[ERROR] Failed to load topology file '{topo_file}': {e}", file=sys.stderr)
+        sys.exit(1)
+
+    src_node = graph.resolve_node(args.source)
+    dst_node = graph.resolve_node(args.dest)
+
+    if not src_node:
+        print(f"[ERROR] Source node or IP '{args.source}' not resolved in topology.", file=sys.stderr)
+        sys.exit(1)
+    if not dst_node:
+        print(f"[ERROR] Destination node or IP '{args.dest}' not resolved in topology.", file=sys.stderr)
+        sys.exit(1)
+
+    paths = graph.find_all_simple_paths(src_node, dst_node, max_paths=args.max_paths)
+    comparison = graph.compare_paths(paths)
+    print_path_comparison(src_node, dst_node, comparison)
+
+    if args.output:
+        try:
+            with open(args.output, "w", encoding="utf-8") as f:
+                json.dump({"source": src_node, "destination": dst_node, "comparison": comparison}, f, indent=2)
+            print(f"\n[INFO] Path comparison written to: {args.output}")
+        except Exception as e:
+            print(f"[ERROR] Failed to save {args.output}: {e}", file=sys.stderr)
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog="sdnscope",
@@ -226,6 +260,15 @@ def main():
     p_topo.add_argument("-P", "--password", help="Controller REST password")
     p_topo.add_argument("-o", "--output", default="topology.json", help="Output JSON filepath (default: topology.json)")
     p_topo.set_defaults(func=cmd_topo)
+
+    # 5. Subcommand: paths
+    p_paths = subparsers.add_parser("paths", help="Find and compare topological paths in SDN graph")
+    p_paths.add_argument("-s", "--source", required=True, help="Source node ID or IP (e.g. h1 or 10.0.0.1)")
+    p_paths.add_argument("-d", "--dest", required=True, help="Destination node ID or IP (e.g. h2 or 10.0.0.2)")
+    p_paths.add_argument("-f", "--file", default="topology.json", help="Topology JSON file (default: topology.json)")
+    p_paths.add_argument("-m", "--max-paths", type=int, default=10, help="Maximum number of paths to find (default: 10)")
+    p_paths.add_argument("-o", "--output", help="Optional output JSON filepath")
+    p_paths.set_defaults(func=cmd_paths)
 
     args = parser.parse_args()
     args.func(args)
