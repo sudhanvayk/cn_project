@@ -4,12 +4,16 @@ __pycache__/
 *$py.class
 *.so
 .pytest_cache/
+.ruff_cache/
 
 # Virtual environments
 venv/
 .venv/
 env/
 ENV/
+
+# Local sensitive configuration
+config.local.json
 
 # Output and temporary artifacts
 *.log

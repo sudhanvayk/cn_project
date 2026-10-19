@@ -8,7 +8,7 @@
   "ryu_port": 8080,
   "opendaylight_port": 8181,
   "username": "admin",
-  "password": "adminpassword",
+  "password": "",
   "thresholds": {
     "degraded_rtt_ms": 50.0,
     "degraded_packet_loss_percent": 0.0,

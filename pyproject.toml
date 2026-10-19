@@ -1,0 +1,14 @@
+[tool.ruff]
+line-length = 120
+target-version = "py38"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = [
+    "E501",  # line length
+    "E402",  # module level import not at top of file
+    "W291",  # trailing whitespace (used in markdown line breaks)
+]
+
+[tool.ruff.lint.isort]
+combine-as-imports = true
