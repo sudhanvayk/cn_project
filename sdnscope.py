@@ -28,7 +28,13 @@ from probe_server import start_server, load_default_config as load_server_config
 from path_analysis import run_path_analysis, print_path_table
 from sdn_topology import discover_topology, watch_topology, print_topology_summary, load_config as load_topo_config
 from topology_graph import SDNTopologyGraph, print_path_comparison
-from correlate import correlate as run_correlation
+from correlate import (
+    correlate as run_correlation,
+    analyze_port_stats_deltas,
+    analyze_segment_probes,
+    analyze_topology_liveness,
+    aggregate_suspected_links
+)
 
 VERSION = "1.0.0"
 
@@ -271,6 +277,68 @@ def cmd_watch(args):
     )
 
 
+def cmd_localize(args):
+    """Execute dedicated multi-source failure localization."""
+    topo_file = validate_file_exists(args.topo, "Topology file")
+    with open(topo_file, "r", encoding="utf-8") as f:
+        topo_data = json.load(f)
+
+    suspects_raw = []
+
+    # 1. Port statistics
+    if args.baseline_stats and args.current_stats:
+        b_file = validate_file_exists(args.baseline_stats, "Baseline port stats file")
+        c_file = validate_file_exists(args.current_stats, "Current port stats file")
+        with open(b_file, "r", encoding="utf-8") as f:
+            base_stats = json.load(f)
+        with open(c_file, "r", encoding="utf-8") as f:
+            curr_stats = json.load(f)
+        suspects_raw.extend(analyze_port_stats_deltas(base_stats, curr_stats, topo_data.get("links", [])))
+
+    # 2. Segment probing from diag file
+    if args.diag and os.path.exists(args.diag):
+        with open(args.diag, "r", encoding="utf-8") as f:
+            diag_data = json.load(f)
+        seg_metrics = diag_data.get("segment_metrics", {})
+        active_path = args.path.split("->") if args.path else []
+        active_path = [n.strip() for n in active_path if n.strip()]
+        if seg_metrics and active_path:
+            suspects_raw.extend(analyze_segment_probes(seg_metrics, active_path))
+
+    # 3. Topology liveness
+    if args.expected_links:
+        pairs = [p.strip().split(":") for p in args.expected_links.split(",") if ":" in p]
+        suspects_raw.extend(analyze_topology_liveness(pairs, topo_data.get("links", [])))
+
+    suspects = aggregate_suspected_links(suspects_raw)
+
+    print("=" * 74)
+    print("             SDN MULTI-SOURCE FAILURE LOCALIZATION REPORT")
+    print("=" * 74)
+    print(f" Analyzed Topology: {topo_file}")
+    print(f" Suspected Links:   {len(suspects)}")
+    print("-" * 74)
+
+    if not suspects:
+        print(" [OK] No failed or degraded links identified from provided telemetry.")
+    else:
+        print(f" {'Rank':<6} {'Suspected Link':<24} {'Confidence':<14} {'Evidence'}")
+        print(" " + "-" * 72)
+        for idx, s in enumerate(suspects, start=1):
+            conf_str = f"{s['confidence'] * 100:.1f}%"
+            ev_str = "; ".join(s["evidence"])
+            print(f" {idx:<6} {s['link_str']:<24} {conf_str:<14} {ev_str}")
+
+    print("=" * 74)
+    if args.output:
+        try:
+            with open(args.output, "w", encoding="utf-8") as f:
+                json.dump({"suspected_links": suspects}, f, indent=2)
+            print(f"[INFO] Localization report saved to: {args.output}")
+        except Exception as e:
+            print(f"[ERROR] Failed to save {args.output}: {e}", file=sys.stderr)
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog="sdnscope",
@@ -354,6 +422,17 @@ def main():
     p_watch.add_argument("-P", "--password", help="Controller REST password")
     p_watch.add_argument("-o", "--output", default="topology.json", help="Output JSON filepath (default: topology.json)")
     p_watch.set_defaults(func=cmd_watch)
+
+    # 8. Subcommand: localize
+    p_loc = subparsers.add_parser("localize", help="Localize failures using port stats, segment probes, and topology liveness")
+    p_loc.add_argument("-t", "--topo", default="topology.json", help="SDN topology JSON file (default: topology.json)")
+    p_loc.add_argument("--baseline-stats", dest="baseline_stats", help="Port stats before probing JSON")
+    p_loc.add_argument("--current-stats", dest="current_stats", help="Port stats after probing JSON")
+    p_loc.add_argument("-d", "--diag", help="Diagnostic results JSON with segment metrics")
+    p_loc.add_argument("--path", help="Active forwarding path (e.g. h1->s1->s2->h2)")
+    p_loc.add_argument("--expected-links", help="Comma-separated expected links (e.g. s1:s2,s2:h2)")
+    p_loc.add_argument("-o", "--output", help="Optional output JSON filepath")
+    p_loc.set_defaults(func=cmd_localize)
 
     args = parser.parse_args()
     args.func(args)
