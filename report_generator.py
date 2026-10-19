@@ -155,7 +155,9 @@ def generate_markdown_report(report_data: dict, diag_data: dict = None, chart_fi
         md += "| Rank | Suspected Link | Combined Confidence | Localization Evidence Sources |\n"
         md += "|---|---|---|---|\n"
         for idx, s in enumerate(suspects, 1):
-            md += f"| {idx} | `{s['link_str']}` | `{s['confidence']*100:.1f}%` | {'; '.join(s['evidence'])} |\n"
+            ev_list = s.get("evidence", s.get("reasons", []))
+            ev_str = "; ".join(ev_list) if ev_list else "Telemetry anomaly"
+            md += f"| {idx} | `{s.get('link_str', '')}` | `{s.get('confidence', 0.0)*100:.1f}%` | {ev_str} |\n"
 
     md += """
 ---
@@ -172,9 +174,11 @@ def generate_markdown_report(report_data: dict, diag_data: dict = None, chart_fi
             md += f"| {b.get('rank')} | `{b.get('status')}` | {b.get('hop_count')} | +{b.get('extra_hops')} | `{b.get('path_str')}` |\n"
 
     if rec_backup:
+        extra_h = rec_backup.get('extra_hops', 0)
+        p_str = rec_backup.get('path_str', ' -> '.join(rec_backup.get('path', [])))
         md += f"""
 ### Actionable Rerouting Recommendation
-> **Recommended Action:** Failover traffic to backup route **`{rec_backup['path_str']}`** (+{rec_backup['extra_hops']} extra hop penalty).  
+> **Recommended Action:** Failover traffic to backup route **`{p_str}`** (+{extra_h} extra hop penalty).  
 > **Deployment Command:** `python3 sdnscope.py reroute --apply` (or `python3 reroute_helper.py --apply`)
 """
     return md
