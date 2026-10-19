@@ -110,11 +110,6 @@ def discover_ryu_topology(ip: str, port: int, logger: logging.Logger) -> dict:
     base_url = f"http://{ip}:{port}"
     logger.info(f"Connecting to Ryu REST API at {base_url}...")
 
-    nodes = []
-    links = []
-    seen_nodes = set()
-    seen_links = set()
-
     # 1. Query Switches
     switches_url = f"{base_url}/v1.0/topology/switches"
     try:
@@ -123,17 +118,6 @@ def discover_ryu_topology(ip: str, port: int, logger: logging.Logger) -> dict:
         switches_data = resp.json()
     except requests.exceptions.RequestException as e:
         raise ConnectionError(f"Failed to query Ryu switches from {switches_url}: {e}")
-
-    for sw in switches_data:
-        raw_dpid = sw.get("dpid", "")
-        sw_id = dpid_to_switch_id(raw_dpid)
-        seen_nodes.add(sw_id)
-        nodes.append({
-            "id": sw_id,
-            "type": "switch",
-            "dpid": raw_dpid,
-            "ports": sw.get("ports", [])
-        })
 
     # 2. Query Inter-Switch Links
     links_url = f"{base_url}/v1.0/topology/links"
@@ -144,6 +128,54 @@ def discover_ryu_topology(ip: str, port: int, logger: logging.Logger) -> dict:
     except requests.exceptions.RequestException as e:
         raise ConnectionError(f"Failed to query Ryu links from {links_url}: {e}")
 
+    # 3. Query Hosts
+    hosts_url = f"{base_url}/v1.0/topology/hosts"
+    try:
+        resp = requests.get(hosts_url, timeout=REQUEST_TIMEOUT)
+        resp.raise_for_status()
+        hosts_data = resp.json()
+    except requests.exceptions.RequestException as e:
+        raise ConnectionError(f"Failed to query Ryu hosts from {hosts_url}: {e}")
+
+    nodes = parse_ryu_switches(switches_data)
+    links = parse_ryu_links(links_data)
+    host_nodes, host_links = parse_ryu_hosts(hosts_data)
+    nodes.extend(host_nodes)
+    links.extend(host_links)
+
+    return {
+        "controller_type": "ryu",
+        "controller_url": base_url,
+        "discovered_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "nodes": nodes,
+        "links": links
+    }
+
+
+def parse_ryu_switches(switches_data: list) -> list:
+    """Parse Ryu switches JSON array into unified switch node dicts."""
+    nodes = []
+    for sw in switches_data:
+        if isinstance(sw, dict):
+            raw_dpid = sw.get("dpid", "")
+            ports = sw.get("ports", [])
+        else:
+            raw_dpid = str(sw)
+            ports = []
+        sw_id = dpid_to_switch_id(raw_dpid)
+        nodes.append({
+            "id": sw_id,
+            "type": "switch",
+            "dpid": raw_dpid,
+            "ports": ports
+        })
+    return nodes
+
+
+def parse_ryu_links(links_data: list) -> list:
+    """Parse Ryu links JSON array into unified switch-to-switch link dicts."""
+    links = []
+    seen_links = set()
     for link_item in links_data:
         src_raw = link_item.get("src", {}).get("dpid", "")
         dst_raw = link_item.get("dst", {}).get("dpid", "")
@@ -160,16 +192,15 @@ def discover_ryu_topology(ip: str, port: int, logger: logging.Logger) -> dict:
                 "dst_port": link_item.get("dst", {}).get("port_no"),
                 "type": "switch-to-switch"
             })
+    return links
 
-    # 3. Query Hosts
-    hosts_url = f"{base_url}/v1.0/topology/hosts"
-    try:
-        resp = requests.get(hosts_url, timeout=REQUEST_TIMEOUT)
-        resp.raise_for_status()
-        hosts_data = resp.json()
-    except requests.exceptions.RequestException as e:
-        raise ConnectionError(f"Failed to query Ryu hosts from {hosts_url}: {e}")
 
+def parse_ryu_hosts(hosts_data: list) -> tuple:
+    """Parse Ryu hosts JSON array into unified host node and link dicts."""
+    nodes = []
+    links = []
+    seen_nodes = set()
+    seen_links = set()
     for idx, host_item in enumerate(hosts_data, start=1):
         ipv4_list = host_item.get("ipv4", [])
         ip = ipv4_list[0] if ipv4_list else None
@@ -202,14 +233,7 @@ def discover_ryu_topology(ip: str, port: int, logger: logging.Logger) -> dict:
                     "dst_port": port_info.get("port_no"),
                     "type": "host-to-switch"
                 })
-
-    return {
-        "controller_type": "ryu",
-        "controller_url": base_url,
-        "discovered_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "nodes": nodes,
-        "links": links
-    }
+    return nodes, links
 
 
 def discover_opendaylight_topology(ip: str, port: int, username: str, password: str, logger: logging.Logger) -> dict:
@@ -228,6 +252,11 @@ def discover_opendaylight_topology(ip: str, port: int, username: str, password: 
     except requests.exceptions.RequestException as e:
         raise ConnectionError(f"Failed to query OpenDaylight network-topology: {e}")
 
+    return parse_opendaylight_topology(raw_json, base_url)
+
+
+def parse_opendaylight_topology(raw_json: dict, base_url: str = "") -> dict:
+    """Parse OpenDaylight RESTCONF network-topology JSON payload into common schema."""
     topologies = raw_json.get("network-topology", {}).get("topology", [])
     if not topologies:
         raise ValueError("No topology found in OpenDaylight RESTCONF response.")
