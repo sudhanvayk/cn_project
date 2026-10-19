@@ -26,7 +26,7 @@ import sys
 from diagnostic_client import run_diagnostics_single, run_diagnostics_multi, load_config as load_client_config
 from probe_server import start_server, load_default_config as load_server_config
 from path_analysis import run_path_analysis, print_path_table
-from sdn_topology import discover_topology, print_topology_summary, load_config as load_topo_config
+from sdn_topology import discover_topology, watch_topology, print_topology_summary, load_config as load_topo_config
 from topology_graph import SDNTopologyGraph, print_path_comparison
 from correlate import correlate as run_correlation
 
@@ -242,6 +242,35 @@ def cmd_correlate(args):
         sys.exit(1)
 
 
+def cmd_watch(args):
+    """Monitor live topology changes (link up/down, switches)."""
+    cfg = load_topo_config()
+    ctl_type = args.controller or cfg.get("sdn_controller_type", "ryu")
+    ip = validate_ip(args.ip or cfg.get("controller_ip", "127.0.0.1"))
+    port = args.port
+    if port is None:
+        port = cfg.get("opendaylight_port", 8181) if ctl_type in ["odl", "opendaylight"] else cfg.get("ryu_port", 8080)
+    port = validate_port(port)
+
+    username = args.username or cfg.get("username", "admin")
+    password = args.password or cfg.get("password", "")
+    interval = args.interval
+    if interval <= 0:
+        print(f"[ERROR] --interval must be positive, got {interval}", file=sys.stderr)
+        sys.exit(1)
+
+    watch_topology(
+        controller_type=ctl_type,
+        ip=ip,
+        port=port,
+        interval=interval,
+        username=username,
+        password=password,
+        output_file=args.output,
+        verbose=args.verbose
+    )
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog="sdnscope",
@@ -314,6 +343,17 @@ def main():
     p_corr.add_argument("--degraded-rtt", type=float, help="Override degraded mean RTT (ms) threshold")
     p_corr.add_argument("-o", "--output", default="correlation_report.json", help="Output correlation JSON filepath")
     p_corr.set_defaults(func=cmd_correlate)
+
+    # 7. Subcommand: watch
+    p_watch = subparsers.add_parser("watch", help="Continuously monitor topology changes and link state events")
+    p_watch.add_argument("-w", "--interval", type=int, default=5, help="Polling interval in seconds (default: 5)")
+    p_watch.add_argument("-c", "--controller", choices=["ryu", "opendaylight", "odl"], help="Controller type (default: ryu)")
+    p_watch.add_argument("-i", "--ip", help="Controller IP address (default: 127.0.0.1)")
+    p_watch.add_argument("-p", "--port", type=int, help="Controller REST port")
+    p_watch.add_argument("-u", "--username", help="Controller REST username")
+    p_watch.add_argument("-P", "--password", help="Controller REST password")
+    p_watch.add_argument("-o", "--output", default="topology.json", help="Output JSON filepath (default: topology.json)")
+    p_watch.set_defaults(func=cmd_watch)
 
     args = parser.parse_args()
     args.func(args)
