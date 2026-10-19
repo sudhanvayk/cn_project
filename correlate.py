@@ -182,6 +182,73 @@ def analyze_port_stats_deltas(baseline_stats: dict, current_stats: dict, links: 
     return suspects
 
 
+def analyze_segment_probes(segment_metrics: dict, active_path: list) -> list:
+    """
+    Evidence Source B: Per-segment probing anomaly detector.
+    Analyzes measurements to intermediate targets along the path to find
+    where packet loss or RTT first spikes.
+
+    Args:
+        segment_metrics: Dict mapping node_id or IP to diagnostic summary dict.
+                         e.g. {'s1': {'packet_loss_percent': 0.0, 'mean_rtt_ms': 1.2},
+                               's2': {'packet_loss_percent': 60.0, 'mean_rtt_ms': 75.0}}
+        active_path: Ordered list of nodes in active forwarding path.
+
+    Returns:
+        list of dict: Suspected links identified via per-segment probe jumps.
+    """
+    suspects = []
+    if not segment_metrics or not active_path or len(active_path) < 2:
+        return suspects
+
+    prev_node = active_path[0]
+    prev_loss = segment_metrics.get(prev_node, {}).get("packet_loss_percent", 0.0)
+    prev_rtt = segment_metrics.get(prev_node, {}).get("mean_rtt_ms", 0.0) or 0.0
+
+    for i in range(1, len(active_path)):
+        curr_node = active_path[i]
+        curr_metric = segment_metrics.get(curr_node)
+        if not curr_metric:
+            prev_node = curr_node
+            continue
+
+        curr_loss = curr_metric.get("packet_loss_percent", 0.0)
+        curr_rtt = curr_metric.get("mean_rtt_ms", 0.0) or 0.0
+
+        loss_jump = curr_loss - prev_loss
+        rtt_jump = curr_rtt - prev_rtt
+
+        evidence = []
+        confidence = 0.0
+
+        if loss_jump >= 30.0 or (prev_loss < 10.0 and curr_loss >= 50.0):
+            evidence.append(f"Packet loss spiked by +{loss_jump:.1f}% across segment ({prev_node} -> {curr_node})")
+            confidence = max(confidence, 0.90)
+        elif loss_jump >= 10.0:
+            evidence.append(f"Packet loss increased by +{loss_jump:.1f}% across segment ({prev_node} -> {curr_node})")
+            confidence = max(confidence, 0.75)
+
+        if rtt_jump >= 40.0:
+            evidence.append(f"Mean RTT jumped by +{rtt_jump:.2f} ms across segment ({prev_node} -> {curr_node})")
+            confidence = max(confidence, 0.80)
+
+        if evidence:
+            suspects.append({
+                "link": [prev_node, curr_node],
+                "link_str": f"{prev_node} <---> {curr_node}",
+                "evidence_type": "segment_probing",
+                "confidence": confidence,
+                "evidence": evidence
+            })
+
+        prev_node = curr_node
+        prev_loss = curr_loss
+        prev_rtt = curr_rtt
+
+    return suspects
+
+
+
 
 def correlate(diag_file, topo_file, source_node, config_file=DEFAULT_CONFIG_PATH, output_file=DEFAULT_REPORT_FILE):
     """
