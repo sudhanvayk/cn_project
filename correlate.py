@@ -349,6 +349,7 @@ def correlate(diag_file: str, topo_file: str, source_node: str,
               config_file: str = DEFAULT_CONFIG_PATH,
               output_file: str = DEFAULT_REPORT_FILE,
               controller_url: str = None,
+              current_topo_file: str = None,
               baseline_stats_file: str = None,
               current_stats_file: str = None,
               override_thresholds: dict = None,
@@ -438,21 +439,54 @@ def correlate(diag_file: str, topo_file: str, source_node: str,
         for i in range(len(active_path) - 1):
             expected_links.append((active_path[i], active_path[i + 1]))
     if path_status in ["FAILED_PATH", "DEGRADED_PATH"] and expected_links:
-        with open(topo_file, "r", encoding="utf-8") as f:
-            current_topo = json.load(f)
-        suspects_raw.extend(analyze_topology_liveness(expected_links, current_topo.get("links", [])))
+        active_topo_links = []
+        if c_url:
+            try:
+                import urllib.request
+                req = urllib.request.Request(f"{c_url}/v1.0/topology/links", headers={"User-Agent": "SDNScope"})
+                with urllib.request.urlopen(req, timeout=1.5) as resp:
+                    if resp.status == 200:
+                        raw_c_links = json.loads(resp.read().decode("utf-8"))
+                        for cl in raw_c_links:
+                            s_dpid = int(cl.get("src", {}).get("dpid", 0))
+                            d_dpid = int(cl.get("dst", {}).get("dpid", 0))
+                            if s_dpid and d_dpid:
+                                active_topo_links.append({"source": f"s{s_dpid}", "destination": f"s{d_dpid}"})
+                        # Add known host-to-switch links from baseline topology
+                        for h_id, h_node in graph.nodes.items():
+                            if h_node.get("type") == "host":
+                                for neighbor in graph.adj.get(h_id, []):
+                                    active_topo_links.append({"source": h_id, "destination": neighbor})
+            except Exception:
+                pass
+
+        if not active_topo_links and current_topo_file and os.path.exists(current_topo_file):
+            try:
+                with open(current_topo_file, "r", encoding="utf-8") as f:
+                    c_data = json.load(f)
+                    active_topo_links = c_data.get("links", [])
+            except Exception:
+                pass
+
+        if active_topo_links:
+            suspects_raw.extend(analyze_topology_liveness(expected_links, active_topo_links))
+
+    # If failed/degraded and no specific link was caught by stats/liveness, flag intermediate core links
+    if path_status in ["FAILED_PATH", "DEGRADED_PATH"] and not suspects_raw and active_path:
+        for i in range(len(active_path) - 1):
+            u, v = active_path[i], active_path[i + 1]
+            u_type = graph.nodes.get(u, {}).get("type", "unknown")
+            v_type = graph.nodes.get(v, {}).get("type", "unknown")
+            # Only suspect switch-to-switch core links to keep host access links viable
+            if u_type == "switch" and v_type == "switch":
+                suspects_raw.append({
+                    "link": [u, v],
+                    "link_str": f"{u} <---> {v}",
+                    "confidence": 0.60,
+                    "evidence": ["Inferred from end-to-end packet loss / latency anomaly across active route"]
+                })
 
     suspected_links = aggregate_suspected_links(suspects_raw)
-
-    # If failed/degraded and no specific link was caught by stats, flag primary path intermediate links
-    if path_status in ["FAILED_PATH", "DEGRADED_PATH"] and not suspected_links and active_path:
-        for i in range(len(active_path) - 1):
-            suspected_links.append({
-                "link": [active_path[i], active_path[i + 1]],
-                "link_str": f"{active_path[i]} <---> {active_path[i + 1]}",
-                "confidence": 0.60,
-                "evidence": ["Inferred from end-to-end packet loss / latency anomaly across active route"]
-            })
 
     # 6. Rank Backup Paths (excluding suspected bad links)
     ranked_backups = filter_and_rank_backups(candidate_paths, active_path, suspected_links)
@@ -591,6 +625,7 @@ def main():
     parser.add_argument("-e", "--dest", "--destination", dest="dest_node", default=None, help="Destination node ID (e.g. h2) if target_ip is localhost or not in topology")
     parser.add_argument("-c", "--config", default=DEFAULT_CONFIG_PATH, help=f"Configuration JSON file (default: {DEFAULT_CONFIG_PATH})")
     parser.add_argument("--controller", help="SDN Controller REST base URL (e.g. http://127.0.0.1:8080)")
+    parser.add_argument("--current-topo", dest="current_topo", help="Current active topology JSON file (if link has failed)")
     parser.add_argument("--baseline-stats", dest="baseline_stats", help="JSON file containing switch port stats before probing")
     parser.add_argument("--current-stats", dest="current_stats", help="JSON file containing switch port stats after probing")
     parser.add_argument("--degraded-loss", type=float, help="Override degraded packet loss percentage threshold")
@@ -615,6 +650,7 @@ def main():
             config_file=args.config,
             output_file=args.output,
             controller_url=args.controller,
+            current_topo_file=args.current_topo,
             baseline_stats_file=args.baseline_stats,
             current_stats_file=args.current_stats,
             override_thresholds=override_thresholds

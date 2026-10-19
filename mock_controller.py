@@ -110,15 +110,26 @@ class MockSDNState:
             ]
 
     def get_flow_table(self, dpid_num: int) -> list:
+        # Check if an installed rule overrides actions for this dpid
+        installed_action = None
+        for rule in reversed(self.installed_rules):
+            if int(rule.get("dpid", 0)) == dpid_num:
+                acts = rule.get("actions", [])
+                for a in acts:
+                    if isinstance(a, dict) and a.get("type") == "OUTPUT":
+                        installed_action = f"OUTPUT:{a.get('port')}"
+                    elif isinstance(a, str):
+                        installed_action = a
+                break
+
         if dpid_num == 1:
-            # Switch 1 forwards 10.0.0.2 out port 2 (s1->s2), and 10.0.0.1 out port 1 (s1->h1)
-            # In failed mode or if backup routed, outputs to port 3 (s1->s3)
-            out_port = 3 if self.scenario == "failed" else 2
+            # Switch 1 forwards 10.0.0.2 out port 2 (s1->s2) by default, or installed backup (s1->s3)
+            out_act = [installed_action] if installed_action else ["OUTPUT:2"]
             return [
                 {
                     "priority": 100,
                     "match": {"ipv4_dst": "10.0.0.2", "eth_type": 2048},
-                    "actions": [f"OUTPUT:{out_port}"]
+                    "actions": out_act
                 },
                 {
                     "priority": 100,
@@ -128,7 +139,7 @@ class MockSDNState:
             ]
         elif dpid_num == 2:
             # Switch 2 forwards 10.0.0.2 out port 1 (s2->h2)
-            in_port = 3 if self.scenario == "failed" else 2
+            in_port = 3 if (installed_action or self.scenario == "failed") else 2
             return [
                 {
                     "priority": 100,

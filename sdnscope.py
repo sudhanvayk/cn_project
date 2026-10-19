@@ -243,6 +243,7 @@ def cmd_correlate(args):
             config_file=config_file,
             output_file=args.output,
             controller_url=args.controller,
+            current_topo_file=args.current_topo,
             baseline_stats_file=args.baseline_stats,
             current_stats_file=args.current_stats,
             override_thresholds=override_thresholds
@@ -455,6 +456,7 @@ def main():
     p_corr.add_argument("-e", "--dest", "--destination", dest="dest_node", default=None, help="Destination node ID (e.g. h2) if target is localhost or not directly mapped")
     p_corr.add_argument("-c", "--config", default="config.json", help="Config JSON filepath (default: config.json)")
     p_corr.add_argument("--controller", help="SDN Controller REST base URL")
+    p_corr.add_argument("--current-topo", dest="current_topo", help="Current active topology JSON file (if link has failed)")
     p_corr.add_argument("--baseline-stats", dest="baseline_stats", help="Port stats before probing JSON")
     p_corr.add_argument("--current-stats", dest="current_stats", help="Port stats after probing JSON")
     p_corr.add_argument("--degraded-loss", type=float, help="Override degraded packet loss percentage threshold")

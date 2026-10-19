@@ -6,6 +6,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 cd "$ROOT_DIR"
 
+PYTHON_BIN="python3"
+if [ -f "$ROOT_DIR/.venv/bin/python3" ]; then
+    PYTHON_BIN="$ROOT_DIR/.venv/bin/python3"
+fi
+
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 RUN_DIR="results/$TIMESTAMP"
 mkdir -p "$RUN_DIR"
@@ -30,7 +35,7 @@ echo -e "\n>>> EXECUTING SCENARIO C: FAILED PATH & REROUTE <<<"
 
 # 4. Generate Comprehensive Report from Degraded or Latest Result
 echo -e "\n>>> GENERATING EXECUTIVE REPORT (MARKDOWN, HTML, CHARTS) <<<"
-python3 report_generator.py \
+$PYTHON_BIN report_generator.py \
     -r "$RUN_DIR/scenario_degraded/correlation_report.json" \
     -d "$RUN_DIR/scenario_degraded/diagnostic_result.json" \
     -m "$RUN_DIR/report.md" \
