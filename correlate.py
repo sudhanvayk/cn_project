@@ -13,6 +13,7 @@ by hop count, and produces actionable rerouting recommendations.
 import argparse
 import json
 import os
+import re
 import sys
 import time
 
@@ -88,6 +89,98 @@ def classify_path_health(summary, thresholds):
         "HEALTHY_PATH",
         "None (Path is healthy and operating within nominal thresholds)"
     )
+
+
+def analyze_port_stats_deltas(baseline_stats: dict, current_stats: dict, links: list) -> list:
+    """
+    Evidence Source A: Analyze per-port tx/rx counters and drop/error deltas.
+    Flags links where tx/rx packets mismatch or drops/errors occur.
+
+    Args:
+        baseline_stats: Dict of {dpid_str: [port_dict, ...]} before probing.
+        current_stats: Dict of {dpid_str: [port_dict, ...]} after probing.
+        links: List of topology link dicts.
+
+    Returns:
+        list of dict: Suspected links identified via port statistics.
+    """
+    suspects = []
+    if not baseline_stats or not current_stats:
+        return suspects
+
+    # Helper to index port stats by (dpid, port_no)
+    def index_stats(stats_dict):
+        indexed = {}
+        for dpid, ports in stats_dict.items():
+            for p in ports:
+                p_no = p.get("port_no")
+                if p_no is not None:
+                    indexed[(str(dpid), int(p_no))] = p
+        return indexed
+
+    base_idx = index_stats(baseline_stats)
+    curr_idx = index_stats(current_stats)
+
+    for link in links:
+        src = link.get("source")
+        dst = link.get("destination")
+        src_port = link.get("src_port")
+        dst_port = link.get("dst_port")
+
+        if not src_port or not dst_port:
+            continue
+
+        # Extract numeric dpid if needed
+        s_dpid = re.search(r'\d+', src)
+        d_dpid = re.search(r'\d+', dst)
+        if not s_dpid or not d_dpid:
+            continue
+
+        s_key = (s_dpid.group(0), int(src_port))
+        d_key = (d_dpid.group(0), int(dst_port))
+
+        s_base = base_idx.get(s_key, {})
+        s_curr = curr_idx.get(s_key, {})
+        d_base = base_idx.get(d_key, {})
+        d_curr = curr_idx.get(d_key, {})
+
+        s_tx_delta = max(0, s_curr.get("tx_packets", 0) - s_base.get("tx_packets", 0))
+        d_rx_delta = max(0, d_curr.get("rx_packets", 0) - d_base.get("rx_packets", 0))
+        s_drop_delta = max(0, s_curr.get("tx_dropped", 0) - s_base.get("tx_dropped", 0))
+        d_drop_delta = max(0, d_curr.get("rx_dropped", 0) - d_base.get("rx_dropped", 0))
+        s_err_delta = max(0, s_curr.get("tx_errors", 0) - s_base.get("tx_errors", 0))
+        d_err_delta = max(0, d_curr.get("rx_errors", 0) - d_base.get("rx_errors", 0))
+
+        evidence = []
+        confidence = 0.0
+
+        if s_drop_delta > 0 or d_drop_delta > 0:
+            total_drops = s_drop_delta + d_drop_delta
+            evidence.append(f"Port drop counters incremented: {total_drops} dropped packets on link {src}:{src_port} <-> {dst}:{dst_port}")
+            confidence = max(confidence, 0.85)
+
+        if s_err_delta > 0 or d_err_delta > 0:
+            total_errors = s_err_delta + d_err_delta
+            evidence.append(f"Port error counters incremented: {total_errors} errors on link {src}:{src_port} <-> {dst}:{dst_port}")
+            confidence = max(confidence, 0.80)
+
+        # Transmit mismatch
+        if s_tx_delta > 0 and s_tx_delta > d_rx_delta:
+            diff = s_tx_delta - d_rx_delta
+            evidence.append(f"Packet mismatch across link: {src} TX delta ({s_tx_delta}) exceeds {dst} RX delta ({d_rx_delta}) by {diff} pkts")
+            confidence = max(confidence, 0.90)
+
+        if evidence:
+            suspects.append({
+                "link": [src, dst],
+                "link_str": f"{src} <---> {dst}",
+                "evidence_type": "port_statistics",
+                "confidence": confidence,
+                "evidence": evidence
+            })
+
+    return suspects
+
 
 
 def correlate(diag_file, topo_file, source_node, config_file=DEFAULT_CONFIG_PATH, output_file=DEFAULT_REPORT_FILE):
