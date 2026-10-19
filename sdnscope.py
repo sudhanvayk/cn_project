@@ -25,6 +25,7 @@ import sys
 
 from diagnostic_client import run_diagnostics_single, run_diagnostics_multi, load_config as load_client_config
 from probe_server import start_server, load_default_config as load_server_config
+from path_analysis import run_path_analysis, print_path_table
 
 VERSION = "1.0.0"
 
@@ -127,6 +128,26 @@ def cmd_serve(args):
     start_server(host=bind_ip, port=port, drop_rate=drop_rate, delay_ms=delay_ms, verbose=args.verbose)
 
 
+def cmd_trace(args):
+    """Execute network path analysis."""
+    target = validate_ip(args.target)
+    max_hops = args.max_hops
+    if max_hops <= 0 or max_hops > 255:
+        print(f"[ERROR] --max-hops must be between 1 and 255, got {max_hops}", file=sys.stderr)
+        sys.exit(1)
+
+    result = run_path_analysis(target_ip=target, max_hops=max_hops, timeout=args.timeout, verbose=args.verbose)
+    print_path_table(result)
+
+    if args.output:
+        try:
+            with open(args.output, "w", encoding="utf-8") as f:
+                json.dump(result, f, indent=2)
+            print(f"\n[INFO] Path trace saved to: {args.output}")
+        except Exception as e:
+            print(f"[ERROR] Failed to save {args.output}: {e}", file=sys.stderr)
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog="sdnscope",
@@ -157,6 +178,14 @@ def main():
     p_serve.add_argument("--drop-rate", type=float, default=0.0, help="Artificial packet drop rate (0.0 to 1.0)")
     p_serve.add_argument("--delay-ms", type=float, default=0.0, help="Artificial delay in milliseconds")
     p_serve.set_defaults(func=cmd_serve)
+
+    # 3. Subcommand: trace
+    p_trace = subparsers.add_parser("trace", help="Execute hop-by-hop path tracing")
+    p_trace.add_argument("target", help="Target IP address to trace")
+    p_trace.add_argument("-m", "--max-hops", type=int, default=30, help="Maximum hop limit (default: 30)")
+    p_trace.add_argument("--timeout", type=float, default=2.0, help="Timeout in seconds per probe (default: 2.0)")
+    p_trace.add_argument("-o", "--output", help="Optional output JSON filepath")
+    p_trace.set_defaults(func=cmd_trace)
 
     args = parser.parse_args()
     args.func(args)
