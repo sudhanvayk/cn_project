@@ -26,6 +26,7 @@ import sys
 from diagnostic_client import run_diagnostics_single, run_diagnostics_multi, load_config as load_client_config
 from probe_server import start_server, load_default_config as load_server_config
 from path_analysis import run_path_analysis, print_path_table
+from sdn_topology import discover_topology, print_topology_summary, load_config as load_topo_config
 
 VERSION = "1.0.0"
 
@@ -148,6 +149,35 @@ def cmd_trace(args):
             print(f"[ERROR] Failed to save {args.output}: {e}", file=sys.stderr)
 
 
+def cmd_topo(args):
+    """Discover SDN switches, hosts, and links."""
+    cfg = load_topo_config()
+    ctl_type = args.controller or cfg.get("sdn_controller_type", "ryu")
+    ip = validate_ip(args.ip or cfg.get("controller_ip", "127.0.0.1"))
+    port = args.port
+    if port is None:
+        port = cfg.get("opendaylight_port", 8181) if ctl_type in ["odl", "opendaylight"] else cfg.get("ryu_port", 8080)
+    port = validate_port(port)
+
+    username = args.username or cfg.get("username", "admin")
+    password = args.password or cfg.get("password", "")
+
+    try:
+        topo = discover_topology(ctl_type, ip, port, username, password, verbose=args.verbose)
+        print_topology_summary(topo)
+        if args.output:
+            with open(args.output, "w", encoding="utf-8") as f:
+                json.dump(topo, f, indent=2)
+            print(f"\n[INFO] Topology written to: {args.output}")
+    except ConnectionError as ce:
+        print(f"[ERROR] Connection failed: {ce}", file=sys.stderr)
+        print("[HINT] Ensure SDN controller is active, or use mock_controller.py for offline tests.", file=sys.stderr)
+        sys.exit(1)
+    except Exception as e:
+        print(f"[ERROR] Topology discovery failed: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog="sdnscope",
@@ -186,6 +216,16 @@ def main():
     p_trace.add_argument("--timeout", type=float, default=2.0, help="Timeout in seconds per probe (default: 2.0)")
     p_trace.add_argument("-o", "--output", help="Optional output JSON filepath")
     p_trace.set_defaults(func=cmd_trace)
+
+    # 4. Subcommand: topo
+    p_topo = subparsers.add_parser("topo", help="Discover SDN switches, links, and hosts")
+    p_topo.add_argument("-c", "--controller", choices=["ryu", "opendaylight", "odl"], help="Controller type (default: ryu)")
+    p_topo.add_argument("-i", "--ip", help="Controller IP address (default: 127.0.0.1)")
+    p_topo.add_argument("-p", "--port", type=int, help="Controller REST port")
+    p_topo.add_argument("-u", "--username", help="Controller REST username")
+    p_topo.add_argument("-P", "--password", help="Controller REST password")
+    p_topo.add_argument("-o", "--output", default="topology.json", help="Output JSON filepath (default: topology.json)")
+    p_topo.set_defaults(func=cmd_topo)
 
     args = parser.parse_args()
     args.func(args)
