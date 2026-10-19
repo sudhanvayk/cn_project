@@ -28,6 +28,7 @@ from probe_server import start_server, load_default_config as load_server_config
 from path_analysis import run_path_analysis, print_path_table
 from sdn_topology import discover_topology, print_topology_summary, load_config as load_topo_config
 from topology_graph import SDNTopologyGraph, print_path_comparison
+from correlate import correlate as run_correlation
 
 VERSION = "1.0.0"
 
@@ -212,6 +213,35 @@ def cmd_paths(args):
             print(f"[ERROR] Failed to save {args.output}: {e}", file=sys.stderr)
 
 
+def cmd_correlate(args):
+    """Correlate telemetry with topology, localize failures, and rank backups."""
+    diag_file = validate_file_exists(args.diag, "Diagnostic result file")
+    topo_file = validate_file_exists(args.topo, "Topology file")
+    config_file = args.config if os.path.exists(args.config) else "config.json"
+
+    override_thresholds = {
+        "degraded_packet_loss_percent": args.degraded_loss,
+        "failed_packet_loss_percent": args.failed_loss,
+        "degraded_rtt_ms": args.degraded_rtt
+    }
+
+    try:
+        run_correlation(
+            diag_file=diag_file,
+            topo_file=topo_file,
+            source_node=args.source,
+            config_file=config_file,
+            output_file=args.output,
+            controller_url=args.controller,
+            baseline_stats_file=args.baseline_stats,
+            current_stats_file=args.current_stats,
+            override_thresholds=override_thresholds
+        )
+    except Exception as e:
+        print(f"[ERROR] Correlation failed: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog="sdnscope",
@@ -269,6 +299,21 @@ def main():
     p_paths.add_argument("-m", "--max-paths", type=int, default=10, help="Maximum number of paths to find (default: 10)")
     p_paths.add_argument("-o", "--output", help="Optional output JSON filepath")
     p_paths.set_defaults(func=cmd_paths)
+
+    # 6. Subcommand: correlate
+    p_corr = subparsers.add_parser("correlate", help="Correlate UDP telemetry with topology and localize failure")
+    p_corr.add_argument("-d", "--diag", default="diagnostic_result.json", help="Diagnostic result JSON (default: diagnostic_result.json)")
+    p_corr.add_argument("-t", "--topo", default="topology.json", help="Topology JSON (default: topology.json)")
+    p_corr.add_argument("-s", "--source", default="h1", help="Source node ID or IP (default: h1)")
+    p_corr.add_argument("-c", "--config", default="config.json", help="Config JSON filepath (default: config.json)")
+    p_corr.add_argument("--controller", help="SDN Controller REST base URL")
+    p_corr.add_argument("--baseline-stats", dest="baseline_stats", help="Port stats before probing JSON")
+    p_corr.add_argument("--current-stats", dest="current_stats", help="Port stats after probing JSON")
+    p_corr.add_argument("--degraded-loss", type=float, help="Override degraded packet loss percentage threshold")
+    p_corr.add_argument("--failed-loss", type=float, help="Override failed packet loss percentage threshold")
+    p_corr.add_argument("--degraded-rtt", type=float, help="Override degraded mean RTT (ms) threshold")
+    p_corr.add_argument("-o", "--output", default="correlation_report.json", help="Output correlation JSON filepath")
+    p_corr.set_defaults(func=cmd_correlate)
 
     args = parser.parse_args()
     args.func(args)
