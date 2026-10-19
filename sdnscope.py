@@ -118,7 +118,8 @@ def cmd_probe(args):
             output_file=args.output,
             interval=interval,
             burst=args.burst,
-            verbose=args.verbose
+            verbose=args.verbose,
+            dest_node=args.dest_node
         )
 
 
@@ -238,6 +239,7 @@ def cmd_correlate(args):
             diag_file=diag_file,
             topo_file=topo_file,
             source_node=args.source,
+            dest_node=args.dest_node,
             config_file=config_file,
             output_file=args.output,
             controller_url=args.controller,
@@ -407,6 +409,7 @@ def main():
     p_probe.add_argument("--interval", type=float, help="Delay between probes in seconds (default: 0.1)")
     p_probe.add_argument("--burst", action="store_true", help="Send probes back-to-back with zero delay")
     p_probe.add_argument("-o", "--output", default="diagnostic_result.json", help="Output JSON filepath")
+    p_probe.add_argument("-n", "--dest-node", dest="dest_node", default=None, help="Destination node ID (e.g. h2) to associate with telemetry")
     p_probe.set_defaults(func=cmd_probe)
 
     # 2. Subcommand: serve
@@ -449,6 +452,7 @@ def main():
     p_corr.add_argument("-d", "--diag", default="diagnostic_result.json", help="Diagnostic result JSON (default: diagnostic_result.json)")
     p_corr.add_argument("-t", "--topo", default="topology.json", help="Topology JSON (default: topology.json)")
     p_corr.add_argument("-s", "--source", default="h1", help="Source node ID or IP (default: h1)")
+    p_corr.add_argument("-e", "--dest", "--destination", dest="dest_node", default=None, help="Destination node ID (e.g. h2) if target is localhost or not directly mapped")
     p_corr.add_argument("-c", "--config", default="config.json", help="Config JSON filepath (default: config.json)")
     p_corr.add_argument("--controller", help="SDN Controller REST base URL")
     p_corr.add_argument("--baseline-stats", dest="baseline_stats", help="Port stats before probing JSON")

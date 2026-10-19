@@ -43,6 +43,7 @@ python3 correlate.py \
     -d "$OUT_DIR/diagnostic_result.json" \
     -t "$OUT_DIR/topology.json" \
     -s h1 \
+    -e h2 \
     --controller "http://127.0.0.1:$MOCK_PORT" \
     -o "$OUT_DIR/correlation_report.json"
 

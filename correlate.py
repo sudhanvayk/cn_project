@@ -345,6 +345,7 @@ def filter_and_rank_backups(candidate_paths: list, primary_path: list,
 
 
 def correlate(diag_file: str, topo_file: str, source_node: str,
+              dest_node: str = None,
               config_file: str = DEFAULT_CONFIG_PATH,
               output_file: str = DEFAULT_REPORT_FILE,
               controller_url: str = None,
@@ -379,7 +380,21 @@ def correlate(diag_file: str, topo_file: str, source_node: str,
     graph.load_from_file(topo_file)
 
     src_canonical = graph.resolve_node(source_node) or source_node
-    dst_canonical = graph.resolve_node(target_ip) or target_ip
+    target_node = dest_node or diag_data.get("destination_node")
+    if target_node:
+        dst_canonical = graph.resolve_node(target_node) or target_node
+    else:
+        resolved = graph.resolve_node(target_ip)
+        if resolved:
+            dst_canonical = resolved
+        elif target_ip in ["127.0.0.1", "localhost", "::1"]:
+            other_hosts = [nid for nid, n in graph.nodes.items() if n.get("type") == "host" and nid != src_canonical]
+            if other_hosts:
+                dst_canonical = other_hosts[0]
+            else:
+                dst_canonical = target_ip
+        else:
+            dst_canonical = target_ip
 
     # 3. Reconstruct active path (from flow tables or graph fallback)
     c_url = controller_url or f"http://{cfg.get('controller_ip', '127.0.0.1')}:{cfg.get('ryu_port', 8080)}"
@@ -573,6 +588,7 @@ def main():
     parser.add_argument("-d", "--diag", default=DEFAULT_DIAG_FILE, help=f"Diagnostic result JSON file (default: {DEFAULT_DIAG_FILE})")
     parser.add_argument("-t", "--topo", default=DEFAULT_TOPO_FILE, help=f"SDN topology JSON file (default: {DEFAULT_TOPO_FILE})")
     parser.add_argument("-s", "--source", default=DEFAULT_SOURCE, help=f"Source node ID or IPv4 address (default: {DEFAULT_SOURCE})")
+    parser.add_argument("-e", "--dest", "--destination", dest="dest_node", default=None, help="Destination node ID (e.g. h2) if target_ip is localhost or not in topology")
     parser.add_argument("-c", "--config", default=DEFAULT_CONFIG_PATH, help=f"Configuration JSON file (default: {DEFAULT_CONFIG_PATH})")
     parser.add_argument("--controller", help="SDN Controller REST base URL (e.g. http://127.0.0.1:8080)")
     parser.add_argument("--baseline-stats", dest="baseline_stats", help="JSON file containing switch port stats before probing")
@@ -595,6 +611,7 @@ def main():
             diag_file=args.diag,
             topo_file=args.topo,
             source_node=args.source,
+            dest_node=args.dest_node,
             config_file=args.config,
             output_file=args.output,
             controller_url=args.controller,

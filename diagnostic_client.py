@@ -159,7 +159,7 @@ def compute_probe_statistics(probes: list, sent_count: int) -> dict:
 def run_diagnostics_single(target_ip: str, port: int, count: int, timeout: float,
                            payload_size: int, output_file: str = None,
                            interval: float = DEFAULT_INTERVAL, burst: bool = False,
-                           verbose: bool = False) -> dict:
+                           verbose: bool = False, dest_node: str = None) -> dict:
     """
     Execute active UDP diagnostic probing against a single target.
     """
@@ -293,6 +293,8 @@ def run_diagnostics_single(target_ip: str, port: int, count: int, timeout: float
         "summary": summary,
         "probes": probes
     }
+    if dest_node:
+        result["destination_node"] = dest_node
 
     print_summary_table(target_ip, port, summary, burst)
 
@@ -392,6 +394,7 @@ def main():
     parser.add_argument("--interval", type=float, default=cfg["interval"], help=f"Delay between probes in seconds (default: {cfg['interval']})")
     parser.add_argument("--burst", action="store_true", help="Send probes back-to-back with zero delay to expose queueing/microbursts")
     parser.add_argument("-o", "--output", default=DEFAULT_OUTPUT_FILE, help=f"Output JSON file or prefix (default: {DEFAULT_OUTPUT_FILE})")
+    parser.add_argument("-n", "--dest-node", dest="dest_node", default=None, help="Optional destination node ID (e.g. h2) to associate with telemetry")
     parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose debug logging")
 
     args = parser.parse_args()
@@ -422,7 +425,8 @@ def main():
             output_file=args.output,
             interval=args.interval,
             burst=args.burst,
-            verbose=args.verbose
+            verbose=args.verbose,
+            dest_node=args.dest_node
         )
 
 
