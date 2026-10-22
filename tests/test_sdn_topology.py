@@ -4,10 +4,13 @@ Unit tests for sdn_topology.py
 
 from sdn_topology import (
     diff_topologies,
+    dpid_to_decimal,
     dpid_to_switch_id,
     ip_to_host_id,
     load_config,
+    normalize_dpid,
     parse_opendaylight_topology,
+    parse_ryu_hosts,
     parse_ryu_links,
     parse_ryu_switches,
 )
@@ -107,3 +110,48 @@ def test_load_config():
     config = load_config("config.json")
     assert "sdn_controller_type" in config
     assert "controller_ip" in config
+
+
+def test_parse_ryu_hosts_prefers_ipv4_ignores_colon_colon():
+    """Verify IPv4 preference and '::' IPv6 handling in host parsing."""
+    hosts_data = [
+        {
+            "mac": "16:fe:2d:6a:16:99",
+            "ipv4": ["10.0.0.2"],
+            "ipv6": ["::", "fe80::14fe:2dff:fe6a:1699"],
+            "port": {"dpid": "0000000000000002", "port_no": "00000001", "name": "s2-eth1"}
+        },
+        {
+            "mac": "aa:bb:cc:dd:ee:ff",
+            "ipv4": [],
+            "ipv6": ["::", "fe80::aaaa"],
+            "port": {"dpid": "0000000000000003", "port_no": "00000001", "name": "s3-eth1"}
+        },
+    ]
+    nodes, links = parse_ryu_hosts(hosts_data)
+
+    # Only h1 with IPv4 10.0.0.2 should be parsed; host with only :: should be skipped
+    assert len(nodes) == 1
+    assert nodes[0]["id"] == "h2"
+    assert nodes[0]["ip"] == "10.0.0.2"
+
+
+def test_parse_ryu_hosts_empty_list():
+    """Verify empty hosts list returns empty nodes/links (fresh controller)."""
+    nodes, links = parse_ryu_hosts([])
+    assert nodes == []
+    assert links == []
+
+
+def test_normalize_dpid_and_decimal():
+    """Verify DPID normalization between 16-char hex and decimal forms."""
+    assert normalize_dpid("0000000000000001") == "0000000000000001"
+    assert normalize_dpid("1") == "0000000000000001"
+    assert normalize_dpid("s1") == "0000000000000001"
+    assert normalize_dpid("0000000000000003") == "0000000000000003"
+    assert normalize_dpid("3") == "0000000000000003"
+
+    assert dpid_to_decimal("0000000000000001") == 1
+    assert dpid_to_decimal("1") == 1
+    assert dpid_to_decimal("s1") == 1
+    assert dpid_to_decimal("0000000000000003") == 3

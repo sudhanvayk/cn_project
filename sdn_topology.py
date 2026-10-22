@@ -16,6 +16,7 @@ import argparse
 import json
 import logging
 import os
+import re
 import sys
 import time
 
@@ -31,6 +32,52 @@ DEFAULT_ODL_PORT = 8181
 DEFAULT_USERNAME = "admin"
 DEFAULT_OUTPUT_FILE = "topology.json"
 REQUEST_TIMEOUT = 5.0
+
+# OpenFlow 1.3 LLDP discovery ethertype
+LLDP_DL_TYPE = 35020
+LLDP_DST_MAC = "01:80:c2:00:00:0e"
+
+
+def normalize_dpid(dpid_str: str) -> str:
+    """
+    Normalize a DPID to 16-char lowercase hex string form (as returned by
+    Ryu topology API /v1.0/topology/switches and /v1.0/topology/links).
+
+    Accepts:
+      - 16-char hex string (e.g. "0000000000000002") -> returned as-is
+      - Decimal string/int (e.g. "2" or 2) -> converted to 16-char hex
+      - "sN" form (e.g. "s2") -> extracts N, converts to 16-char hex
+    """
+    dpid_str = str(dpid_str).strip()
+
+    # Already 16-char hex
+    if len(dpid_str) == 16 and all(c in "0123456789abcdefABCDEF" for c in dpid_str):
+        return dpid_str.lower()
+
+    # "sN" form
+    m = re.match(r"^s(\d+)$", dpid_str, re.IGNORECASE)
+    if m:
+        return format(int(m.group(1)), "016x")
+
+    # Decimal
+    try:
+        val = int(dpid_str)
+        return format(val, "016x")
+    except ValueError:
+        return dpid_str
+
+
+def dpid_to_decimal(dpid_str: str) -> int:
+    """
+    Convert any DPID form to a decimal integer (as used by
+    /stats/flow/<dpid> and /stats/port/<dpid>).
+    """
+    hex_str = normalize_dpid(dpid_str)
+    try:
+        return int(hex_str, 16)
+    except ValueError:
+        m = re.search(r"\d+", str(dpid_str))
+        return int(m.group(0)) if m else 0
 
 
 def setup_logger(verbose: bool = False) -> logging.Logger:
@@ -83,8 +130,9 @@ def load_config(config_path: str = DEFAULT_CONFIG_PATH) -> dict:
 
 def dpid_to_switch_id(dpid_str: str) -> str:
     """Normalize switch DPID into clean identifier like 's1'."""
+    hex_str = normalize_dpid(dpid_str)
     try:
-        val = int(str(dpid_str), 16)
+        val = int(hex_str, 16)
         return f"s{val}"
     except (ValueError, TypeError):
         return str(dpid_str)
@@ -196,14 +244,33 @@ def parse_ryu_links(links_data: list) -> list:
 
 
 def parse_ryu_hosts(hosts_data: list) -> tuple:
-    """Parse Ryu hosts JSON array into unified host node and link dicts."""
+    """Parse Ryu hosts JSON array into unified host node and link dicts.
+
+    Prefers IPv4 addresses and ignores IPv6 "::" entries. Handles empty host
+    lists gracefully (fresh controller with no hosts discovered yet).
+    """
     nodes = []
     links = []
     seen_nodes = set()
     seen_links = set()
     for idx, host_item in enumerate(hosts_data, start=1):
         ipv4_list = host_item.get("ipv4", [])
-        ip = ipv4_list[0] if ipv4_list else None
+        ipv6_list = host_item.get("ipv6", [])
+
+        # Prefer IPv4; ignore "::" and other IPv6-only entries
+        ip = None
+        if ipv4_list:
+            ip = ipv4_list[0]
+        elif ipv6_list:
+            # Skip link-local / unspecified IPv6 addresses like "::"
+            non_link_local = [a for a in ipv6_list if a and a != "::" and not a.startswith("fe80:")]
+            if non_link_local:
+                ip = non_link_local[0]
+
+        if ip is None:
+            # Host has no usable IPv4/IPv6 address; skip it
+            continue
+
         mac = host_item.get("mac", "")
         host_id = ip_to_host_id(ip, idx)
 

@@ -18,6 +18,7 @@ import sys
 
 import requests
 
+from sdn_topology import LLDP_DL_TYPE, LLDP_DST_MAC, dpid_to_decimal
 from topology_graph import SDNTopologyGraph
 
 DEFAULT_CONTROLLER_URL = "http://127.0.0.1:8080"
@@ -43,6 +44,23 @@ def parse_output_port(action_str: str):
         val = match.group(1)
         return int(val) if val.isdigit() else val
     return None
+
+
+def is_lldp_flow(flow: dict) -> bool:
+    """Detect Ryu LLDP discovery flow: dl_type 35020, dl_dst 01:80:c2:00:00:0e, OUTPUT:CONTROLLER."""
+    match = flow.get("match", {})
+    dl_type = match.get("dl_type", match.get("eth_type"))
+    dl_dst = match.get("dl_dst", match.get("eth_dst", ""))
+    actions = flow.get("actions", [])
+    has_controller_output = any("OUTPUT:CONTROLLER" in str(a) for a in actions)
+    return (dl_type == LLDP_DL_TYPE and dl_dst and str(dl_dst).lower() == LLDP_DST_MAC.lower() and has_controller_output)
+
+
+def is_table_miss_flow(flow: dict) -> bool:
+    """Detect OpenFlow table-miss flow: priority 0 with match-all / empty match."""
+    priority = flow.get("priority", 0)
+    match = flow.get("match", {})
+    return priority == 0 and (not match or match.get("dl_type") is None)
 
 
 class FlowInspector:
@@ -72,13 +90,18 @@ class FlowInspector:
             return []
 
     def get_flows(self, dpid: int) -> list:
-        """Fetch installed flow rules for given DPID from /stats/flow/<dpid>."""
-        url = f"{self.controller_url}/stats/flow/{dpid}"
+        """Fetch installed flow rules for given DPID from /stats/flow/<dpid>.
+
+        Ryu ofctl_rest expects a decimal DPID in the URL and returns
+        {"<decimal dpid>": [flows]}.
+        """
+        dpid_decimal = dpid_to_decimal(dpid)
+        url = f"{self.controller_url}/stats/flow/{dpid_decimal}"
         try:
             resp = requests.get(url, timeout=self.timeout)
             resp.raise_for_status()
             data = resp.json()
-            return data.get(str(dpid), [])
+            return data.get(str(dpid_decimal), [])
         except Exception as e:
             self.logger.warning(f"Failed to fetch flow rules from {url}: {e}")
             return []
@@ -95,17 +118,34 @@ class FlowInspector:
             self.logger.warning(f"Failed to fetch port stats from {url}: {e}")
             return []
 
-    def match_flow_rule(self, flows: list, dst_ip: str, dst_mac: str = None) -> dict:
+    def match_flow_rule(self, flows: list, dst_ip: str = None, dst_mac: str = None) -> dict:
         """
         Find highest priority flow rule matching destination IP or MAC.
+
+        Parses real Ryu ofctl_rest OpenFlow 1.3 legacy match keys:
+          dl_src, dl_dst, dl_type, in_port (integer), nw_src, nw_dst
+        Accepts eth_src/eth_dst/eth_type as aliases too.
+        Skips LLDP discovery flows and table-miss flows.
         """
         matching_rules = []
         for flow in flows:
+            # Skip LLDP discovery flows
+            if is_lldp_flow(flow):
+                continue
+            # Skip table-miss flows
+            if is_table_miss_flow(flow):
+                continue
+
             match = flow.get("match", {})
             priority = flow.get("priority", 0)
 
-            matches_ip = (dst_ip and match.get("ipv4_dst") == dst_ip)
-            matches_mac = (dst_mac and match.get("eth_dst") == dst_mac)
+            # Normalize match keys: accept both legacy (dl_*, nw_*) and
+            # modern (eth_*, ipv4_*) forms.
+            match_dl_dst = match.get("dl_dst", match.get("eth_dst"))
+            match_nw_dst = match.get("nw_dst", match.get("ipv4_dst"))
+
+            matches_ip = (dst_ip and (match_nw_dst == dst_ip or match_dl_dst == dst_ip))
+            matches_mac = (dst_mac and (match_dl_dst == dst_mac))
 
             if matches_ip or matches_mac:
                 matching_rules.append((priority, flow))
@@ -181,14 +221,11 @@ class FlowInspector:
             if current_node == dst_node:
                 break
 
-            # Convert friendly switch ID (s1) to dpid integer (1)
+            # Convert friendly switch ID (s1) to decimal DPID (1) for ofctl_rest
             dpid_num = None
             dpid_str = self.graph.nodes.get(current_node, {}).get("dpid")
             if dpid_str:
-                try:
-                    dpid_num = int(dpid_str, 16)
-                except ValueError:
-                    pass
+                dpid_num = dpid_to_decimal(dpid_str)
             if dpid_num is None:
                 match = re.search(r'\d+', current_node)
                 dpid_num = int(match.group(0)) if match else None

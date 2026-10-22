@@ -121,18 +121,54 @@ class MockSDNState:
                         installed_action = a
                 break
 
+        # LLDP discovery flow (dl_type 35020, dl_dst 01:80:c2:00:00:0e, OUTPUT:CONTROLLER)
+        lldp_flow = {
+            "priority": 65535,
+            "cookie": 0,
+            "idle_timeout": 0,
+            "hard_timeout": 0,
+            "byte_count": 0,
+            "duration_sec": 0,
+            "duration_nsec": 0,
+            "packet_count": 0,
+            "length": 96,
+            "flags": 0,
+            "actions": ["OUTPUT:CONTROLLER"],
+            "match": {"dl_dst": "01:80:c2:00:00:0e", "dl_type": 35020},
+            "table_id": 0
+        }
+
+        # Table-miss flow (priority 0, match-all)
+        table_miss_flow = {
+            "priority": 0,
+            "cookie": 0,
+            "idle_timeout": 0,
+            "hard_timeout": 0,
+            "byte_count": 0,
+            "duration_sec": 0,
+            "duration_nsec": 0,
+            "packet_count": 0,
+            "length": 96,
+            "flags": 0,
+            "actions": ["OUTPUT:CONTROLLER"],
+            "match": {},
+            "table_id": 0
+        }
+
         if dpid_num == 1:
             # Switch 1 forwards 10.0.0.2 out port 2 (s1->s2) by default, or installed backup (s1->s3)
             out_act = [installed_action] if installed_action else ["OUTPUT:2"]
             return [
+                lldp_flow,
+                table_miss_flow,
                 {
                     "priority": 100,
-                    "match": {"ipv4_dst": "10.0.0.2", "eth_type": 2048},
+                    "match": {"nw_dst": "10.0.0.2", "dl_type": 2048, "in_port": 1},
                     "actions": out_act
                 },
                 {
                     "priority": 100,
-                    "match": {"ipv4_dst": "10.0.0.1", "eth_type": 2048},
+                    "match": {"nw_dst": "10.0.0.1", "dl_type": 2048, "in_port": 2},
                     "actions": ["OUTPUT:1"]
                 }
             ]
@@ -140,28 +176,32 @@ class MockSDNState:
             # Switch 2 forwards 10.0.0.2 out port 1 (s2->h2)
             in_port = 3 if (installed_action or self.scenario == "failed") else 2
             return [
+                lldp_flow,
+                table_miss_flow,
                 {
                     "priority": 100,
-                    "match": {"ipv4_dst": "10.0.0.2", "eth_type": 2048},
+                    "match": {"nw_dst": "10.0.0.2", "dl_type": 2048, "in_port": 2},
                     "actions": ["OUTPUT:1"]
                 },
                 {
                     "priority": 100,
-                    "match": {"ipv4_dst": "10.0.0.1", "eth_type": 2048},
+                    "match": {"nw_dst": "10.0.0.1", "dl_type": 2048, "in_port": 1},
                     "actions": [f"OUTPUT:{in_port}"]
                 }
             ]
         elif dpid_num == 3:
             # Switch 3 forwards 10.0.0.2 out port 2 (s3->s2) and 10.0.0.1 out port 1 (s3->s1)
             return [
+                lldp_flow,
+                table_miss_flow,
                 {
                     "priority": 100,
-                    "match": {"ipv4_dst": "10.0.0.2", "eth_type": 2048},
+                    "match": {"nw_dst": "10.0.0.2", "dl_type": 2048, "in_port": 1},
                     "actions": ["OUTPUT:2"]
                 },
                 {
                     "priority": 100,
-                    "match": {"ipv4_dst": "10.0.0.1", "eth_type": 2048},
+                    "match": {"nw_dst": "10.0.0.1", "dl_type": 2048, "in_port": 2},
                     "actions": ["OUTPUT:1"]
                 }
             ]
