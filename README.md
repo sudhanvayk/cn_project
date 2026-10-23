@@ -1,4 +1,4 @@
-# Socket-Based Network Diagnostic and Path Analysis Tool for SDN
+# Socket-Based Network Diagnostic and Path Analysis Tool for SDN (SDNScope)
 
 **Topic 13:** Network Diagnostic and Path Analysis Tool  
 **Problem Statement:** Develop a socket-based network diagnostic application that measures delay, packet loss, and path characteristics and correlates the results with the SDN network topology.  
@@ -30,7 +30,30 @@ The table below maps each of the **7 core problem expectations** directly to imp
 
 ---
 
-## 3. System Architecture Diagram
+## 3. Port & Address Map (Single Source of Truth)
+
+All modules, scripts, and documentation strictly adhere to this port and address assignment:
+
+### Control Plane & Services
+| Component / Service | Protocol | Host / Interface | Port | Purpose / Endpoint |
+|---|---|---|---|---|
+| **Ryu REST API** | HTTP (JSON) | `127.0.0.1` | **TCP 8080** | Northbound REST (`/v1.0/topology/*`, `/stats/*`) |
+| **OpenFlow Controller** | OpenFlow 1.3 | `127.0.0.1` | **TCP 6653** | Ryu default OpenFlow listen port for OVS switches |
+| **OpenDaylight RESTCONF** | HTTP / RESTCONF | `127.0.0.1` | **TCP 8181** | Supported schema format (`/restconf/operational/...`) |
+| **UDP Diagnostic Probe Service** | UDP | `0.0.0.0` / `10.0.0.2` | **UDP 9999** | Server socket handled by `probe_server.py` on `h2` |
+
+### Data Plane (Mininet Diamond Topology)
+| Node | Type | DPID / IP / MAC | Connected Port Wiring | TCLink Parameters |
+|---|---|---|---|---|
+| **h1** | Host | `10.0.0.1/24` (MAC: `00:00:00:00:00:01`) | `h1-eth0` <-> `s1-eth1` | 100 Mbit/s, 1 ms delay |
+| **h2** | Host | `10.0.0.2/24` (MAC: `00:00:00:00:00:02`) | `h2-eth0` <-> `s2-eth1` | 100 Mbit/s, 1 ms delay |
+| **s1** | Switch | DPID: `1` (`0000000000000001`) | Port 1: `h1`, Port 2: `s2`, Port 3: `s3` | Inter-switch: 10 Mbit/s, 2 ms |
+| **s2** | Switch | DPID: `2` (`0000000000000002`) | Port 1: `h2`, Port 2: `s1`, Port 3: `s3` | Inter-switch: 10 Mbit/s, 2 ms |
+| **s3** | Switch | DPID: `3` (`0000000000000003`) | Port 1: `s1`, Port 2: `s2` | Inter-switch: 10 Mbit/s, 2 ms |
+
+---
+
+## 4. System Architecture Diagram
 
 ```
 +-----------------------------------------------------------------------------------+
@@ -45,6 +68,7 @@ The table below maps each of the **7 core problem expectations** directly to imp
 |                                        |                                          |
 |                                        v                                          |
 |                     UNIFIED CLI CONTROLLER: sdnscope.py                           |
+|    +-------------------------------------------------------------------------+    |
 +----------------------------------------+------------------------------------------+
                                          |
         +--------------------------------+-------------------------------+
@@ -70,52 +94,26 @@ The table below maps each of the **7 core problem expectations** directly to imp
 
 ---
 
-## 4. Installation & Environment Setup
-
-### 4.1 System Prerequisites
-- **Operating System:** Linux (Ubuntu 20.04/22.04 LTS or Debian 11/12 recommended)
-- **Python:** Python 3.8 through 3.12
-- **Virtual Environment:** Recommended to isolate dependencies.
-
-### 4.2 Quick Installation
-```bash
-# 1. Clone repository and navigate to workspace
-git clone <repo_url>
-cd cn_project
-
-# 2. Create and activate virtual environment
-python3 -m venv .venv
-source .venv/bin/activate
-
-# 3. Install dependencies
-pip install --upgrade pip setuptools wheel
-pip install -r requirements.txt
-```
-
-*(Note on Mininet and Ryu: See [`SETUP.md`](file:///home/sudh/Documents/cn_project/SETUP.md) for full instructions on launching hardware-emulated Mininet topologies with Open vSwitch).*
-
----
-
 ## 5. Unified Command-Line Interface (`sdnscope.py`)
 
 All system functionality is accessible via the modular `sdnscope.py` CLI:
 
 ```bash
 # Display help and available subcommands
-python3 sdnscope.py --help
+.venv/bin/python sdnscope.py --help
 ```
 
 ### Available Subcommands
 
 | Subcommand | Purpose | Key Arguments |
 |---|---|---|
-| `probe` | Run active UDP diagnostic probe client | `target_ip -p 9999 -c 10 --interval 0.05 --burst -n h2` |
-| `serve` | Start multi-threaded UDP probe server | `-p 9999 -b 0.0.0.0 --drop-rate 0.10 --delay-ms 50` |
-| `trace` | Execute hop-by-hop IP layer path trace | `target_ip -m 30 --timeout 2.0 -o trace.json` |
-| `topo` | Discover switches, links, and hosts via REST | `-c ryu -i 127.0.0.1 -p 8080 -o topology.json` |
-| `paths` | Find and rank all loop-free simple paths (BFS) | `-s h1 -d h2 -f topology.json` |
+| `probe` | Run active UDP diagnostic probe client | `target_ip -p 9999 -c 50 --interval 0.05 --burst -o diag.json` |
+| `serve` | Start multi-threaded UDP probe server | `-p 9999 -b 0.0.0.0 --drop-rate 0.10 --delay-ms 30` |
+| `trace` | Execute hop-by-hop IP layer path trace | `target_ip -m 5 --timeout 1.0 -o trace.json` |
+| `topo` | Discover switches, links, and hosts via REST | `-c ryu -i 127.0.0.1 -p 8080 --hosts-file hosts.json -o topo.json` |
+| `paths` | Find and rank all loop-free simple paths (BFS) | `-s h1 -d h2 -f topo.json -o paths.json` |
 | `correlate` | Correlate telemetry, localize faults, rank backups | `-d diag.json -t topo.json -s h1 -e h2 --controller <url>` |
-| `watch` | Monitor live SDN topology changes in real time | `-w 5 -c ryu -i 127.0.0.1 -p 8080` |
+| `watch` | Monitor live SDN topology changes in real time | `-c ryu -i 127.0.0.1 -p 8080 --interval 1` |
 | `localize` | Run dedicated 3-tier failure localization | `-t topo.json --baseline-stats b.json --current-stats c.json` |
 | `reroute` | Install OpenFlow backup flow modifications | `-r report.json -t topo.json -c <url> [--apply]` |
 | `report` | Generate Markdown, HTML, and chart reports | `-r report.json -d diag.json -m report.md -H report.html` |
@@ -124,63 +122,47 @@ python3 sdnscope.py --help
 
 ## 6. Real Scenario Walkthrough & Verified Results
 
-The suite includes an automated test harness ([`scripts/run_all_scenarios.sh`](file:///home/sudh/Documents/cn_project/scripts/run_all_scenarios.sh)) that runs all three scenarios and records real telemetry in [`results/`](file:///home/sudh/Documents/cn_project/results/).
+The entire 4-scenario suite runs end-to-end on a live Mininet 2.3.0 + Ryu 4.34 testbed using [`scripts/run_all_scenarios.sh`](file:///home/sudh/Documents/cn_project/scripts/run_all_scenarios.sh). All artifacts are persisted in `results/real_<timestamp>/` (symlinked to `results/latest/`).
 
-### Scenario A: Baseline Operation (Healthy Path)
-- **Condition:** Nominal link characteristics ($0.0\%$ packet loss, latency $< 2.0\text{ ms}$).
-- **Measured Metrics:**
-  - Probes: 10 sent, 10 received, 0 lost ($0.00\%$ loss).
-  - RTT: Mean $1.52\text{ ms}$, Median $1.41\text{ ms}$, p95 $2.10\text{ ms}$.
-  - Jitter: StdDev $0.42\text{ ms}$, RFC 3550 Inter-Arrival $0.18\text{ ms}$.
-- **Control Plane Correlation:**
-  - Active Path: `h1 -> s1 -> s2 -> h2` (3 hops, `path_source: FLOW_TABLE`).
-  - Classification: `HEALTHY_PATH`. Suspected links: None.
+### Comparative Scenario Performance Summary
+| Metric | Healthy Baseline | Degraded Path | Failed Link | Failover Recovery |
+|---|---|---|---|---|
+| **Scenario Name** | `healthy` | `degraded` | `failed` | `recovery` |
+| **Active Forwarding Route** | `h1 -> s1 -> s2 -> h2` | `h1 -> s1 -> s2 -> h2` | `h1 -> s1 -> s2 -> h2` | `h1 -> s1 -> s3 -> s2 -> h2` |
+| **Hop Count** | 3 | 3 | 3 | 4 (+1 hop) |
+| **Path Source** | `FLOW_TABLE` | `FLOW_TABLE` | `FLOW_TABLE` | `FLOW_TABLE` |
+| **Physical Impairment** | None (nominal) | `netem` 30ms delay, 5% loss on s1-eth2/s2-eth2 | `link s1 s2 down` (physical severed) | `link s1 s2 down` + backup flows |
+| **Probes Sent / Received** | 50 / 50 | 100 / 90 | 20 / 0 | 50 / 50 |
+| **Packet Loss Rate** | **0.00%** | **10.00%** | **100.00%** | **0.00%** |
+| **Mean RTT** | **13.24 ms** | **73.32 ms** | **N/A** | **19.94 ms** |
+| **Median RTT** | 11.81 ms | 69.57 ms | N/A | 18.89 ms |
+| **Min / Max RTT** | 9.89 ms / 32.42 ms | 65.92 ms / 243.85 ms | N/A | 14.74 ms / 32.34 ms |
+| **95th Percentile RTT (p95)** | 19.59 ms | 87.34 ms | N/A | 28.28 ms |
+| **StdDev RTT** | 3.94 ms | 19.18 ms | N/A | 3.98 ms |
+| **RFC 3550 Inter-Arrival Jitter**| 3.85 ms | 10.96 ms | N/A | 3.75 ms |
+| **Path Health Verdict** | `HEALTHY_PATH` | `DEGRADED_PATH` | `FAILED_PATH` | `HEALTHY_PATH` |
+| **Failure Diagnosis** | Nominal baseline | Packet loss (10.0%) & high RTT (73.32ms) | Severe packet loss (100.0%) | Nominal operation on backup route |
+| **Suspected Broken Link** | None | `s1 <---> s2` (60.0% confidence) | `s1 <---> s2` (100.0% confidence) | None |
+| **Recommended Backup Route** | `h1 -> s1 -> s3 -> s2 -> h2` | `h1 -> s1 -> s3 -> s2 -> h2` | `h1 -> s1 -> s3 -> s2 -> h2` | N/A (Already active) |
 
-### Scenario B: Link Congestion & Queue Degradation
-- **Condition:** Injected link queue congestion ($60\text{ ms}$ delay, $10.0\%$ drop rate on primary link).
-- **Measured Metrics:**
-  - Probes: 15 sent, 14 received, 1 lost ($6.67\%$ loss).
-  - RTT: Mean $62.57\text{ ms}$, Max $64.15\text{ ms}$ (exceeds $50\text{ ms}$ SLA threshold).
-- **Control Plane Correlation & Failure Localization:**
-  - Classification: `DEGRADED_PATH`.
-  - Suspect Link: Core link `s1 <---> s2` flagged.
-  - Recommended Backup: `h1 -> s1 -> s3 -> s2 -> h2` (4 hops, $+1$ extra hop, `VIABLE_BACKUP`).
-
-### Scenario C: Hard Link Failure & Automated Failover
-- **Condition:** Primary core link `s1 <---> s2` severed ($100\%$ loss).
-- **Measured Metrics:**
-  - Probes: 5 sent, 0 received ($100.00\%$ loss).
-- **Control Plane Correlation & Failure Localization:**
-  - Classification: `FAILED_PATH`.
-  - Evidence C (Topology Liveness): Link `s1 <---> s2` disappeared from controller active topology ($100.0\%$ confidence).
-  - Pruned Paths: `h1 -> s1 -> s2 -> h2` excluded (`EXCLUDED_CORRUPT_LINK`).
-  - Recommended Backup: `h1 -> s1 -> s3 -> s2 -> h2` (Rank 1, `VIABLE_BACKUP`).
-- **Automated OpenFlow Failover:**
-  - `sdnscope reroute --apply` installs rule on Switch 1:
-    `DPID 1 | Match: {ipv4_dst: 10.0.0.2} | Action: OUTPUT port 3 | Priority: 200`
-  - Restores end-to-end host connectivity across alternative switch `s3`.
+*(Complete raw outputs and execution logs are compiled in [`docs/EVIDENCE.md`](file:///home/sudh/Documents/cn_project/docs/EVIDENCE.md)).*
 
 ---
 
-## 7. Automated Testing, Linting & Demo
-
-A comprehensive Makefile provides standard development and validation targets:
+## 7. Automated Testing & Quality Gates
 
 ```bash
-# Run full pytest test suite (35 unit and integration tests with coverage report)
+# Run pytest test suite (69 tests with coverage report)
 make test
 
-# Run ruff static code analysis (zero lint errors enforced)
+# Run ruff static code analysis
 make lint
 
-# Run standalone localhost demonstration (no Mininet required)
-make demo
+# Execute pre-flight environment check
+make real-check
 
-# Run all 3 scenarios and generate reports in results/<timestamp>/
-make scenarios
-
-# Clean caches and temporary files
-make clean
+# Execute end-to-end Mininet+Ryu scenario suite
+make real-scenarios
 ```
 
 ---
@@ -188,7 +170,7 @@ make clean
 ## 8. Technical Limitations & Engineering Tradeoffs
 
 1. **OpenFlow Layer 2 TTL Transparency:**
-   In OpenFlow fabrics without explicit `dec_ttl` actions, Layer 2 bridges forward Ethernet frames without modifying the IPv4 TTL. Standard `traceroute` is transparent to OpenFlow switches and reports only 1 hop. Our framework solves this by making OpenFlow flow-table inspection (`flow_inspector.py`) the authoritative source for path discovery.
+   In OpenFlow fabrics without explicit `dec_ttl` actions, Layer 2 bridges forward Ethernet frames without modifying the IPv4 TTL. Standard `traceroute` is transparent to OpenFlow switches and reports only 1 hop. Our framework solves this by making OpenFlow flow-table inspection ([`flow_inspector.py`](file:///home/sudh/Documents/cn_project/flow_inspector.py)) the authoritative source for path discovery.
 2. **One-Way Delay Clock Synchronization:**
    One-way forward ($T_{recv} - T_{send}$) and reverse delay estimates are subject to clock skew between endpoints unless hardware time synchronization (such as IEEE 1588 PTP or sub-millisecond NTP) is present. **Round-Trip Time (RTT)** relies strictly on client-side timestamps and remains mathematically immune to clock skew.
 3. **Control-Plane Polling Intervals:**
@@ -196,19 +178,12 @@ make clean
 
 ---
 
-## 9. Future Enhancements
+## 9. Project Documentation Index
 
-- **P4 / In-Band Network Telemetry (INT):** Direct embedding of hop latency and port queue depth into packet headers at line rate.
-- **Segment Routing over IPv6 (SRv6):** Source-routed backup path deployment without requiring per-hop flow-table modifications.
-- **Streaming Machine Learning Telemetry:** Real-time predictive anomaly detection to anticipate queue overflow and execute proactive traffic steering.
-
----
-
-## 10. Project Documentation Index
-
-- [`SETUP.md`](file:///home/sudh/Documents/cn_project/SETUP.md): Mininet, Ryu, and Python environment setup guide.
+- [`SETUP.md`](file:///home/sudh/Documents/cn_project/SETUP.md): Mininet, isolated Ryu virtualenv, and system setup guide.
 - [`docs/DESIGN.md`](file:///home/sudh/Documents/cn_project/docs/DESIGN.md): Architectural decisions, protocol formats, and mathematical formulas.
+- [`docs/EVIDENCE.md`](file:///home/sudh/Documents/cn_project/docs/EVIDENCE.md): Full transcripts, comparative tables, and live verification logs.
 - [`docs/DEMO.md`](file:///home/sudh/Documents/cn_project/docs/DEMO.md): 5-minute step-by-step oral presentation demonstration script.
 - [`docs/VIVA.md`](file:///home/sudh/Documents/cn_project/docs/VIVA.md): 20 likely examiner questions with comprehensive technical answers.
 - [`docs/schemas.md`](file:///home/sudh/Documents/cn_project/docs/schemas.md): JSON schemas for all telemetry packets, topology, and reports.
-- [`AUDIT.md`](file:///home/sudh/Documents/cn_project/AUDIT.md): Original codebase audit, gap analysis, and implementation roadmap.
+- [`CHANGELOG.md`](file:///home/sudh/Documents/cn_project/CHANGELOG.md): Record of changes and version releases.
