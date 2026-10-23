@@ -1,6 +1,6 @@
 # Makefile for SDN Network Diagnostic and Path Analysis Suite
 
-.PHONY: all test lint format demo scenarios clean help
+.PHONY: all test lint format demo scenarios clean help real-check
 
 PYTHON ?= python3
 VENV ?= .venv
@@ -22,6 +22,7 @@ help:
 	@echo "  make format     - Automatically format code using ruff"
 	@echo "  make demo       - Execute standalone localhost demonstration (no Mininet required)"
 	@echo "  make scenarios  - Automatically run all 3 SDN scenarios (healthy, degraded, failed)"
+	@echo "  make real-check - Verify sudo, tools, ports, and pre-flight gates for real Mininet"
 	@echo "  make clean      - Remove build artifacts, pycache, and coverage databases"
 
 test:
@@ -38,6 +39,9 @@ demo:
 
 scenarios:
 	./scripts/run_all_scenarios.sh
+
+real-check:
+	./scripts/preflight_check.sh
 
 clean:
 	rm -rf .pytest_cache .coverage htmlcov
