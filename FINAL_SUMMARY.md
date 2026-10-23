@@ -1,9 +1,9 @@
 # SDNScope — Final Verification & Mission Summary
 
 **Project:** SDNScope (Topic 13: Socket-Based Network Diagnostic and Path Analysis Tool for SDN)  
-**Release:** `v1.1.0`  
-**Base Branch:** `main` (Merged from `fix/real-sdn-validation` with `--no-ff`)  
-**Tag:** `v1.1.0`  
+**Release:** `v1.1.1`  
+**Base Branch:** `main` (Merged from `fix/v1.1.1-validation` with `--no-ff`)  
+**Tag:** `v1.1.1`  
 **Execution Environment:** Ubuntu 24.04 VM (`sudh-VB`, Linux kernel 7.0.0-38-generic)  
 **Controller Runtime:** Ryu 4.34 in Python 3.9 venv (`~/ryu-env/bin/ryu-manager`)  
 **Data Plane Testbed:** Mininet 2.3.0 + Open vSwitch 3.3.9 Diamond Topology (s1, s2, s3, h1, h2)  
@@ -17,9 +17,10 @@ This mission successfully finished, hardened, and verified **SDNScope** on a gen
 
 Nothing in the final results is simulated, mocked, or reused:
 - **Baseline Healthy RTT:** Measured at **13.24 ms** (theoretical lower bound 8.0 ms + Python socket / OVS kernel qdisc processing; acceptable range 6–20 ms; 0.00% packet loss).
-- **Impaired Degraded RTT & Loss:** Measured at **73.32 ms** (+60 ms round-trip delay injected via Linux kernel `netem`) and **10.00% loss** (5% drop per direction).
+- **Impaired Degraded RTT & Loss:** Measured at **73.32 ms** (+60 ms round-trip delay injected via Linux kernel `netem`) and **10.00% loss** (5% drop per direction). The 60.0% confidence localization on `s1 <---> s2` is explicitly documented as a **path-membership heuristic fallback** (raw qdisc: 13 drops; OVS port drop counters: 0).
 - **Hard Link Failure:** 100.00% loss, physical link severed, localized to `s1 <---> s2` with **100% confidence** within 0.01s.
 - **Failover Recovery:** Rerouting deployed 12 bidirectional OpenFlow 1.3 rules (IPv4 + ARP) with priority 200 via Ryu REST API `/stats/flowentry/add`, immediately restoring connectivity across `h1 -> s1 -> s3 -> s2 -> h2` (4 hops, **19.94 ms RTT**, **0.00% loss**).
+- **Traceroute Hop 1 Reachability:** Diagnostic confirmed destination `h2` responds at Hop 1 with ICMP Port Unreachable (`10.0.0.2`, 0.0% loss, 11.88 ms RTT) because intermediate OpenFlow switches act as Layer 2 bridges and do not decrement IPv4 TTL. Flow rules were verified active across the test harnesses.
 
 ---
 
@@ -74,8 +75,16 @@ Telemetry captured during end-to-end execution of `./scripts/run_all_scenarios.s
 | **RFC 3550 Inter-Arrival Jitter**| 3.85 ms | 10.96 ms | N/A | 3.75 ms |
 | **Path Health Verdict** | `HEALTHY_PATH` | `DEGRADED_PATH` | `FAILED_PATH` | `HEALTHY_PATH` |
 | **Failure Diagnosis** | Nominal baseline | Packet loss (10.0%) & high RTT (73.32ms) | Severe packet loss (100.0%) | Nominal operation on backup route |
-| **Suspected Broken Link** | None | `s1 <---> s2` (60.0% confidence) | `s1 <---> s2` (100.0% confidence) | None |
+| **Suspected Broken Link** | None | `s1 <---> s2` (60.0% confidence, path-membership heuristic fallback) | `s1 <---> s2` (100.0% confidence, physical link down) | None |
 | **Recommended Backup Route** | `h1 -> s1 -> s3 -> s2 -> h2` | `h1 -> s1 -> s3 -> s2 -> h2` | `h1 -> s1 -> s3 -> s2 -> h2` | N/A (Already active) |
+
+### 4.1 Degraded Scenario Evidence Breakdown (Telemetry Transparency)
+In the degraded scenario, link impairment was injected via Linux kernel `tc netem` on `s1-eth2` and `s2-eth2`:
+- **Kernel Qdisc (`tc -s qdisc show dev s1-eth2` / `s2-eth2`):** Total 13 packets dropped (5 on `s1-eth2`, 8 on `s2-eth2`), explaining the measured 10.00% probe loss.
+- **OVS Port Counters (`/stats/port/1`, `/stats/port/2`):** `tx_dropped: 0`, `rx_dropped: 0`. OVS handed packets to the Linux veth netdevice before kernel qdisc drops occurred.
+- **Topology Liveness (`/v1.0/topology/links`):** Link remained carrier UP (all 6 directed links active).
+- **Segment Probing:** None executed.
+- **Conclusion:** The 60.0% confidence on `s1 <---> s2` is explicitly a **path-membership heuristic fallback**, not a physical measurement.
 
 ---
 
@@ -85,7 +94,7 @@ All CLI subcommands were exercised live against the running Mininet and Ryu test
 
 1. **`sdnscope.py topo`:** Discovered all 3 switches (`s1`, `s2`, `s3`) and both hosts (`h1`, `h2`) with 5 bidirectional links.
 2. **`sdnscope.py paths -s h1 -d h2`:** Identified shortest path `h1 -> s1 -> s2 -> h2` (3 hops) and alternative path `h1 -> s1 -> s3 -> s2 -> h2` (4 hops, +1 extra hop).
-3. **`sdnscope.py trace 10.0.0.2`:** Executed native raw socket traceroute from inside host `h1`, reporting OpenFlow Layer 2 TTL transparency with notice detailing controller flow table authority.
+3. **`sdnscope.py trace 10.0.0.2`:** Executed native raw socket traceroute from inside host `h1`, reaching destination `10.0.0.2` at Hop 1 (0.0% loss, 11.88 ms RTT) via ICMP Port Unreachable reply, with notice detailing controller flow table authority over L2 transparent OpenFlow hops.
 4. **`sdnscope.py watch`:** Ran live topology event watcher for 5 seconds; captured physical link severance event `[EVENT DETECTED]: ● LINK DOWN: s1 <---> s2` immediately when bounced in Mininet.
 5. **`sdnscope.py report`:** Generated valid, self-contained Markdown (`report.md`), HTML (`report.html`), and latency time-series visual charts (`rtt_timeseries.png`).
 
@@ -101,22 +110,24 @@ All CLI subcommands were exercised live against the running Mininet and Ryu test
 6. **Namespace Separation:** Routed data-plane probes (`probe`, `trace`) through Mininet namespaces (`h1`), while routing control-plane REST queries through the host environment (`127.0.0.1:8080`).
 7. **Hybrid Host Discovery:** Integrated `--hosts-file` merge into `sdn_topology.py` to overcome Ryu's empty `/v1.0/topology/hosts` endpoint when operating under static flows without learning switches.
 8. **Isolated Controller Runtime:** Pinned Ryu 4.34 in a separate Python 3.9 virtual environment (`~/ryu-env`) using `uv`, leaving the project `.venv` on Python 3.12.
+9. **Traceroute Hop 1 Reachability & Programmatic Flow Installation:** Verified ICMP port unreachable returns from `h2` at Hop 1 in native raw socket, added system traceroute fallback, and set `apply_changes=True` in programmatic flow installer functions.
+10. **Telemetry Attribution Transparency:** Clarified that degraded link localization under kernel qdisc loss is a path-membership heuristic inference ($C=0.60$), not a direct physical measurement.
 
 ---
 
 ## 7. Quality Assurance Gates
 
-- **Unit & Integration Tests:** 69 passed in 7.51s (74% coverage across core modules, 100% on test files).
+- **Unit & Integration Tests:** 71 passed in 7.55s (74% coverage across core modules, 100% on test files).
 - **Static Code Analysis:** `ruff check .` passed with 0 lint errors.
 - **Bytecode Compilation:** `python3 -m py_compile` passed with 0 syntax errors across all `.py` files.
 - **Secrets Audit:** 0 credentials or plaintext passwords present in codebase.
-- **Clean Clone Test:** Tested in `/tmp/cn_clean`; 69 passed without uncommitted dependencies.
+- **Clean Clone Test:** Tested in `/tmp/cn_clean`; 71 passed without uncommitted dependencies.
 - **Working Tree:** 0 uncommitted changes; working tree clean.
 
 ---
 
 ## 8. Git Release Summary
 
-- **Branch:** Merged `fix/real-sdn-validation` into `main` via merge commit.
-- **Tag:** `v1.1.0`
-- **Total Commits Added:** 34 granular Conventional Commits (exceeding the target of 25+).
+- **Branch:** Merged `fix/v1.1.1-validation` into `main` via merge commit.
+- **Tag:** `v1.1.1`
+- **Total Commits Added:** Granular Conventional Commits for each fix and doc update.

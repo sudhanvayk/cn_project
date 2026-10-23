@@ -275,7 +275,7 @@ def install_flows_to_controller(flow_rules: list, controller_url: str = DEFAULT_
 
 
 def install_primary_flows(controller_url: str = DEFAULT_CONTROLLER_URL,
-                           priority: int = 100, apply_changes: bool = False,
+                           priority: int = 100, apply_changes: bool = True,
                            delete_first: bool = True, verbose: bool = False) -> dict:
     """Install static bidirectional primary flows (h1-s1-s2-h2)."""
     rules = build_primary_flow_rules(priority=priority)
@@ -285,7 +285,7 @@ def install_primary_flows(controller_url: str = DEFAULT_CONTROLLER_URL,
 
 
 def install_backup_flows(controller_url: str = DEFAULT_CONTROLLER_URL,
-                          priority: int = 200, apply_changes: bool = False,
+                          priority: int = 200, apply_changes: bool = True,
                           delete_first: bool = True, verbose: bool = False) -> dict:
     """Install static bidirectional backup flows (h1-s1-s3-s2-h2)."""
     rules = build_backup_flow_rules(priority=priority)

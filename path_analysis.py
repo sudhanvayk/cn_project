@@ -26,8 +26,9 @@ DEFAULT_PROBES_PER_HOP = 3
 SDN_L2_TTL_NOTE = (
     "In standard OpenFlow/Mininet networks, switches forward packets at Layer 2 without "
     "decrementing the IPv4 TTL field (unless explicit dec_ttl actions exist). "
-    "Consequently, standard traceroute only reveals Layer 3 routed hops, not intermediate "
-    "OpenFlow switches. Authoritative SDN forwarding paths are determined by querying the "
+    "Consequently, intermediate OpenFlow switches are transparent to standard traceroute; "
+    "the destination host answers directly at Hop 1 via ICMP Port Unreachable. "
+    "Authoritative multi-switch forwarding paths are determined by querying the "
     "SDN controller flow tables (see flow_inspector.py)."
 )
 
@@ -220,29 +221,36 @@ def run_path_analysis(target_ip: str, max_hops: int = DEFAULT_MAX_HOPS,
         except (PermissionError, OSError) as e:
             logger.info(f"Native raw socket traceroute unavailable (non-root: {e}); falling back to system utility.")
 
-    # 2. Fall back to system utilities if native socket was skipped or failed
-    if not hops:
+    # 2. Fall back to system utilities if native socket was skipped, failed, or timed out on all hops
+    has_reachable_hop = any(h.get("status") == "REACHABLE" for h in hops)
+    if not hops or not has_reachable_hop:
         traceroute_bin = shutil.which("traceroute")
         tracepath_bin = shutil.which("tracepath")
 
         if traceroute_bin:
             cmd = [traceroute_bin, "-n", "-m", str(max_hops), "-w", "1", target_ip]
-            method_used = "system_traceroute"
             try:
                 proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=timeout * max_hops)
-                hops = parse_traceroute_output(proc.stdout)
+                parsed = parse_traceroute_output(proc.stdout)
+                if parsed and (not hops or any(p.get("status") == "REACHABLE" for p in parsed)):
+                    hops = parsed
+                    method_used = "system_traceroute"
             except Exception as e:
                 error = f"Traceroute execution error: {e}"
         elif tracepath_bin:
             cmd = [tracepath_bin, "-n", "-m", str(max_hops), target_ip]
-            method_used = "system_tracepath"
             try:
                 proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=timeout * max_hops)
-                hops = parse_tracepath_output(proc.stdout)
+                parsed = parse_tracepath_output(proc.stdout)
+                if parsed and (not hops or any(p.get("status") == "REACHABLE" for p in parsed)):
+                    hops = parsed
+                    method_used = "system_tracepath"
             except Exception as e:
                 error = f"Tracepath execution error: {e}"
-        else:
+        elif not hops:
             error = "Neither native socket (requires root), 'traceroute', nor 'tracepath' was available."
+
+    status = "SUCCESS" if any(h.get("status") == "REACHABLE" for h in hops) else ("ERROR" if error else "TIMEOUT")
 
     return {
         "target": target_ip,
@@ -250,7 +258,7 @@ def run_path_analysis(target_ip: str, max_hops: int = DEFAULT_MAX_HOPS,
         "sdn_note": SDN_L2_TTL_NOTE,
         "hop_count": len(hops),
         "hop_list": hops,
-        "status": "SUCCESS" if hops else ("ERROR" if error else "NO_HOPS_FOUND"),
+        "status": status,
         "error": error
     }
 

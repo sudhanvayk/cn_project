@@ -23,6 +23,7 @@ from mininet.node import OVSSwitch, RemoteController
 
 from reroute_helper import install_primary_flows
 from topology.diamond_topo import DiamondTopo
+from topology.scenario_runner import wait_for_switches
 
 
 def log(msg):
@@ -82,8 +83,11 @@ def main():
         h1.setARP("10.0.0.2", "00:00:00:00:00:02")
         h2.setARP("10.0.0.1", "00:00:00:00:00:01")
 
+        log("Waiting for switches to connect to Ryu...")
+        wait_for_switches("http://127.0.0.1:8080", expected_count=3, timeout=30.0)
+
         log("Installing static primary flows...")
-        install_primary_flows("http://127.0.0.1:8080")
+        install_primary_flows("http://127.0.0.1:8080", apply_changes=True)
         time.sleep(1.0)
 
         # Baseline ping

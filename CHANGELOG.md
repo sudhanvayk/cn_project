@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.1] - 2026-10-23
+
+### Fixed
+- **OpenFlow Forwarding Activation in Test Harnesses:** Changed `apply_changes: bool = True` in `reroute_helper.py` (`install_primary_flows`, `install_backup_flows`) so programmatically instantiated testbeds apply flows live, ensuring `h1` can reach `h2` and receive ICMP replies.
+- **Trace Hop 1 Reachability:** Verified `sdnscope.py trace 10.0.0.2` receives ICMP Port Unreachable replies from `h2` at Hop 1 (0% loss, ~11.8 ms RTT); added system traceroute/tracepath fallback in `path_analysis.py` if raw socket times out.
+- **Unit Testing:** Added unit tests in `tests/test_path_analysis.py` verifying Hop 1 reachable parsing and system utility fallbacks (71 total pytest tests passing).
+
+### Changed
+- **Degraded Scenario Evidence Transparency:** Explicitly classified the 60% confidence on `s1 <---> s2` in `correlate.py`, `docs/DESIGN.md`, `docs/VIVA.md`, and `docs/EVIDENCE.md` as a **path-membership heuristic fallback**, NOT a physical measurement. Documented raw values from `/stats/port` (`tx_dropped: 0`) and `tc -s qdisc show dev s1-eth2` (5 drops on s1-eth2, 8 drops on s2-eth2).
+
+---
+
 ## [1.1.0] - 2026-10-23
 
 ### Added

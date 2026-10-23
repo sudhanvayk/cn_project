@@ -1,7 +1,7 @@
 {
   "controller_type": "ryu",
   "controller_url": "http://127.0.0.1:8080",
-  "discovered_at": "2026-10-23T13:39:29Z",
+  "discovered_at": "2026-10-23T14:20:44Z",
   "nodes": [
     {
       "id": "s1",
@@ -11,45 +11,20 @@
         {
           "dpid": "0000000000000001",
           "port_no": 1,
-          "hw_addr": "a2:03:88:94:08:3e",
+          "hw_addr": "9e:64:69:46:f5:43",
           "name": "s1-eth1"
         },
         {
           "dpid": "0000000000000001",
           "port_no": 2,
-          "hw_addr": "de:59:72:26:0d:71",
+          "hw_addr": "b6:f8:3c:bb:97:e2",
           "name": "s1-eth2"
         },
         {
           "dpid": "0000000000000001",
           "port_no": 3,
-          "hw_addr": "f2:7a:b5:99:89:9f",
+          "hw_addr": "ee:4f:f3:1b:ca:bf",
           "name": "s1-eth3"
-        }
-      ]
-    },
-    {
-      "id": "s2",
-      "type": "switch",
-      "dpid": "0000000000000002",
-      "ports": [
-        {
-          "dpid": "0000000000000002",
-          "port_no": 1,
-          "hw_addr": "32:fa:37:33:98:a6",
-          "name": "s2-eth1"
-        },
-        {
-          "dpid": "0000000000000002",
-          "port_no": 2,
-          "hw_addr": "92:8e:b6:45:d7:4b",
-          "name": "s2-eth2"
-        },
-        {
-          "dpid": "0000000000000002",
-          "port_no": 3,
-          "hw_addr": "ea:fa:32:12:a6:9d",
-          "name": "s2-eth3"
         }
       ]
     },
@@ -61,14 +36,39 @@
         {
           "dpid": "0000000000000003",
           "port_no": 1,
-          "hw_addr": "fe:57:34:bf:4f:f4",
+          "hw_addr": "3e:ca:f2:93:9e:3d",
           "name": "s3-eth1"
         },
         {
           "dpid": "0000000000000003",
           "port_no": 2,
-          "hw_addr": "6a:c3:64:43:f4:40",
+          "hw_addr": "06:0c:23:be:a9:e9",
           "name": "s3-eth2"
+        }
+      ]
+    },
+    {
+      "id": "s2",
+      "type": "switch",
+      "dpid": "0000000000000002",
+      "ports": [
+        {
+          "dpid": "0000000000000002",
+          "port_no": 1,
+          "hw_addr": "06:67:1f:41:93:59",
+          "name": "s2-eth1"
+        },
+        {
+          "dpid": "0000000000000002",
+          "port_no": 2,
+          "hw_addr": "3e:af:f9:2d:be:72",
+          "name": "s2-eth2"
+        },
+        {
+          "dpid": "0000000000000002",
+          "port_no": 3,
+          "hw_addr": "1e:97:04:49:63:eb",
+          "name": "s2-eth3"
         }
       ]
     },
@@ -93,13 +93,6 @@
   ],
   "links": [
     {
-      "source": "s2",
-      "destination": "s1",
-      "src_port": 2,
-      "dst_port": 2,
-      "type": "switch-to-switch"
-    },
-    {
       "source": "s3",
       "destination": "s1",
       "src_port": 1,
@@ -107,10 +100,17 @@
       "type": "switch-to-switch"
     },
     {
-      "source": "s3",
-      "destination": "s2",
+      "source": "s2",
+      "destination": "s1",
       "src_port": 2,
-      "dst_port": 3,
+      "dst_port": 2,
+      "type": "switch-to-switch"
+    },
+    {
+      "source": "s2",
+      "destination": "s3",
+      "src_port": 3,
+      "dst_port": 2,
       "type": "switch-to-switch"
     },
     {
