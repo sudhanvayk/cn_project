@@ -3,10 +3,10 @@
 **Project:** SDN Network Diagnostic and Path Analysis Tool  
 **Topic:** Topic 13 — Socket-Based Network Diagnostic and Path Analysis Tool for SDN  
 **Protocol:** UDP  
-**Version:** 1.0.0  
+**Version:** 1.1.0  
 **Working Directory:** `/home/sudh/Documents/cn_project`  
 **Python Version:** 3.8 – 3.12  
-**OS:** Linux (Ubuntu 20.04/22.04 LTS, Debian 11/12 recommended)
+**OS:** Linux (Ubuntu 20.04/22.04/24.04 LTS, Debian 11/12 recommended)
 
 ---
 
@@ -279,17 +279,20 @@ source .venv/bin/activate
 # Install dependencies
 pip install -r requirements.txt
 
-# Run full test suite (55 tests with coverage)
+# Run full test suite (69 tests with coverage)
 make test
 
 # Run ruff static code analysis (zero lint errors enforced)
 make lint
 
+# Run preflight verification checks
+make real-check
+
 # Run standalone localhost demonstration (no Mininet required)
 make demo
 
-# Run all 3 scenarios and generate reports in results/<timestamp>/
-make scenarios
+# Run live Mininet+Ryu scenario suite
+make real-scenarios
 
 # Clean caches and temporary files
 make clean
@@ -344,7 +347,7 @@ cn_project/
 │   ├── VIVA.md                        # Examiner Q&A
 │   └── schemas.md                     # JSON schemas
 ├── tests/
-│   ├── test_flow_inspector.py         # Flow inspector tests (55 total tests)
+│   ├── test_flow_inspector.py         # Flow inspector tests (69 total tests)
 │   ├── test_sdn_topology.py           # Topology discovery tests
 │   ├── test_correlation.py            # Correlation tests
 │   ├── test_statistics.py             # Statistics tests
@@ -354,18 +357,22 @@ cn_project/
 │   ├── test_report_generator.py       # Report tests
 │   ├── test_reroute_helper.py         # Reroute tests
 │   ├── test_packet_parsing.py         # Packet parsing tests
+│   ├── test_real_diamond_fixtures.py  # Genuine diamond fixture verification
 │   └── fixtures/
 │       ├── real/                      # Linear_3 topology fixtures (preserved)
-│       └── synthetic_diamond/              # Diamond topology fixtures (new)
+│       ├── synthetic_diamond/         # Diamond topology fixtures (synthetic)
+│       └── real_diamond/              # Diamond topology fixtures (live capture)
 ├── results/
-│   ├── demo_localhost/                # Localhost demo outputs
-│   └── 20261019_222731/              # Scenario outputs (healthy/degraded/failed)
+│   ├── latest/                        # Symlink to latest real execution
+│   └── real_20261023_190236/          # Live Mininet+Ryu scenario outputs
 └── scripts/
-    ├── run_all_scenarios.sh           # Run all scenarios
+    ├── run_all_scenarios.sh           # Run live testbed scenarios
+    ├── run_ryu.sh                     # Ryu controller runner
+    ├── preflight_check.sh             # Pre-flight environment check
     └── demo_localhost.sh              # Localhost demo
 ```
 
 ---
 
 **End of Project Summary**  
-*All 55 tests pass. All ruff lint checks pass.*
+*All 69 tests pass. All ruff lint checks pass.*
