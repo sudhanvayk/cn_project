@@ -37,9 +37,9 @@ class SecureDiamondTopo(Topo):
     """Diamond topology (s1, s2, s3) with OpenFlow 1.3."""
 
     def build(self):
-        s1 = self.addSwitch("s1", dpid="0000000000000001", protocols="OpenFlow13")
-        s2 = self.addSwitch("s2", dpid="0000000000000002", protocols="OpenFlow13")
-        s3 = self.addSwitch("s3", dpid="0000000000000003", protocols="OpenFlow13")
+        s1 = self.addSwitch("s1", dpid="0000000000000001", protocols="OpenFlow13", failMode="secure")
+        s2 = self.addSwitch("s2", dpid="0000000000000002", protocols="OpenFlow13", failMode="secure")
+        s3 = self.addSwitch("s3", dpid="0000000000000003", protocols="OpenFlow13", failMode="secure")
 
         h1 = self.addHost("h1", ip="10.0.0.1/24", mac="00:00:00:00:00:01")
         h2 = self.addHost("h2", ip="10.0.0.2/24", mac="00:00:00:00:00:02")
@@ -201,7 +201,7 @@ def main():
         net = Mininet(
             topo=topo,
             controller=lambda name: RemoteController(name, ip="127.0.0.1", port=args.of_port),
-            switch=lambda name, **kw: OVSSwitch(name, failMode="secure", protocols="OpenFlow13", **kw),
+            switch=OVSSwitch,
             link=TCLink,
             autoSetMacs=True,
         )
