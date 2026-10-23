@@ -1,0 +1,9 @@
+s1-eth2:
+qdisc netem 10: root refcnt 5 limit 1000 delay 30ms loss 5%
+ Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+ backlog 0b 0p requeues 0
+
+s2-eth2:
+qdisc netem 10: root refcnt 5 limit 1000 delay 30ms loss 5%
+ Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+ backlog 0b 0p requeues 0
