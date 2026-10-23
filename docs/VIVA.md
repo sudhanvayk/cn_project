@@ -88,7 +88,19 @@ If end-to-end packet loss naively marked every link along the path as suspected 
 
 ---
 
-### Q10: How does the backup path ranking algorithm prune candidate paths?
+### Q10: In the degraded scenario, why was the 60% confidence on s1-s2 based on path-membership rather than port drop measurements?
+**Answer:**
+In the real degraded scenario, link impairment was injected using Linux kernel `tc netem` on interfaces `s1-eth2` and `s2-eth2`.
+- **Raw Kernel Qdisc Drops:** `tc -s qdisc show dev s1-eth2` recorded **5 dropped packets**, and `s2-eth2` recorded **8 dropped packets**.
+- **OVS OpenFlow Port Counters:** `/stats/port/1` and `/stats/port/2` reported `tx_dropped = 0` and `rx_dropped = 0` because OVS handed frames to the Linux veth netdevice before the kernel qdisc dropped them.
+- **Topology Liveness:** The link remained link-state UP in Ryu (`/v1.0/topology/links` reported all links active).
+- **Segment Probes:** None were configured on the diamond topology.
+
+Because all direct in-switch measurements reported 0 drops, `correlate.py` fell back to **path-membership heuristic inference** ($C = 0.60$). This is explicitly an inference, **not a direct physical measurement**. It flags the intermediate core link along the degraded route so that backup route re-ranking can recommend `h1 -> s1 -> s3 -> s2 -> h2`.
+
+---
+
+### Q11: How does the backup path ranking algorithm prune candidate paths?
 **Answer:**
 1. BFS enumerates all simple loop-free paths between source and destination.
 2. The current active path is set aside.

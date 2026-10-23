@@ -3,7 +3,7 @@
 **Project:** SDN Network Diagnostic and Path Analysis Tool  
 **Topic:** Topic 13 — Socket-Based Network Diagnostic and Path Analysis Tool for SDN  
 **Protocol:** UDP  
-**Version:** 1.1.0  
+**Version:** 1.1.1  
 **Working Directory:** `/home/sudh/Documents/cn_project`  
 **Python Version:** 3.8 – 3.12  
 **OS:** Linux (Ubuntu 20.04/22.04/24.04 LTS, Debian 11/12 recommended)
@@ -279,7 +279,7 @@ source .venv/bin/activate
 # Install dependencies
 pip install -r requirements.txt
 
-# Run full test suite (69 tests with coverage)
+# Run full test suite (71 tests with coverage)
 make test
 
 # Run ruff static code analysis (zero lint errors enforced)
@@ -375,4 +375,4 @@ cn_project/
 ---
 
 **End of Project Summary**  
-*All 69 tests pass. All ruff lint checks pass.*
+*All 71 tests pass. All ruff lint checks pass.*

@@ -479,7 +479,8 @@ def correlate(diag_file: str, topo_file: str, source_node: str,
         if active_topo_links:
             suspects_raw.extend(analyze_topology_liveness(expected_links, active_topo_links))
 
-    # If failed/degraded and no specific link was caught by stats/liveness, flag intermediate core links
+    # If failed/degraded and no specific link was caught by direct telemetry (stats/liveness/segment probes),
+    # flag intermediate core links purely via path-membership heuristic (NOT a direct physical measurement).
     if path_status in ["FAILED_PATH", "DEGRADED_PATH"] and not suspects_raw and active_path:
         for i in range(len(active_path) - 1):
             u, v = active_path[i], active_path[i + 1]
@@ -491,7 +492,11 @@ def correlate(diag_file: str, topo_file: str, source_node: str,
                     "link": [u, v],
                     "link_str": f"{u} <---> {v}",
                     "confidence": 0.60,
-                    "evidence": ["Inferred from end-to-end packet loss / latency anomaly across active route"]
+                    "evidence": [
+                        "Path-membership heuristic inference: active core link traversed during end-to-end "
+                        "degradation (not a physical measurement: OVS /stats/port drop counters were 0, "
+                        "kernel qdisc drops are not exposed via OpenFlow, and topology link state remained UP)"
+                    ]
                 })
 
     suspected_links = aggregate_suspected_links(suspects_raw)

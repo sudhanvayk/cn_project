@@ -192,7 +192,16 @@ Where each source contributes an empirical detection weight $c_i \in (0, 1]$:
 - $c_i = 0.85$: Switch egress port drop counter increment ($\Delta \text{TX\_Drop} > 0$).
 - $c_i = 0.75$: Port TX/RX packet counter mismatch ($\Delta \text{TX}_{src} > \Delta \text{RX}_{dst}$).
 - $c_i = 0.90$: Segment probe degradation / failure.
-- $c_i = 0.60$: End-to-end telemetry anomaly inference when no localized port counters are reported (e.g. netem kernel drops).
+- $c_i = 0.60$: Path-membership heuristic fallback when end-to-end anomalies are detected but direct telemetry sources report zero localized anomalies.
+
+### Path-Membership Heuristic vs. Direct Telemetry (Degraded Scenario Analysis)
+In our real degraded scenario run, link `s1-eth2 <---> s2-eth2` was degraded using Linux kernel `tc netem`:
+1. **OVS Port Statistics Deltas (`/stats/port`):** Raw `tx_dropped` and `rx_dropped` deltas on `s1` (port 2) and `s2` (port 2) were strictly **0**. Open vSwitch handed frames to the Linux veth netdevice before the kernel qdisc dropped them, so OVS port counters recorded zero drops.
+2. **Kernel Qdisc Drops (`tc -s qdisc show dev s1-eth2`):** Raw kernel output reported **5 dropped packets** on `s1-eth2` and **8 dropped packets** on `s2-eth2`. However, kernel qdisc telemetry is not exposed over northbound OpenFlow 1.3 REST APIs.
+3. **Topology Liveness (`/v1.0/topology/links`):** The link remained link-state UP and carrier active; Ryu observed all 3 links continuously.
+4. **Segment Probes:** No intermediate hop probe responders existed on this unrouted topology.
+
+**Honest Classification:** The 60.0% confidence assigned to `s1 <---> s2` in the degraded scenario was derived **solely from path-membership heuristic inference** (flagging the traversed intermediate core switch-to-switch link along the degraded path). It is **not a physical measurement**. This heuristic allows backup path pruning to explore alternative routes (`h1-s1-s3-s2-h2`) without penalizing host-to-switch access links (`h1-s1`, `s2-h2`).
 
 ---
 
