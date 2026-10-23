@@ -6,7 +6,16 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 
-RYU_BIN="${RYU_BIN:-$HOME/ryu-env/bin/ryu-manager}"
+RYU_BIN="${RYU_BIN:-}"
+if [ -z "$RYU_BIN" ]; then
+    if [ -x "$HOME/ryu-env/bin/ryu-manager" ]; then
+        RYU_BIN="$HOME/ryu-env/bin/ryu-manager"
+    elif [ -x "/home/sudh/ryu-env/bin/ryu-manager" ]; then
+        RYU_BIN="/home/sudh/ryu-env/bin/ryu-manager"
+    else
+        RYU_BIN="/home/sudh/ryu-env/bin/ryu-manager"
+    fi
+fi
 PID_FILE="${RYU_PID_FILE:-/tmp/ryu_sdnscope.pid}"
 DEFAULT_LOG="${RYU_LOG_FILE:-/tmp/ryu_sdnscope.log}"
 REST_URL="${RYU_REST_URL:-http://127.0.0.1:8080}"
