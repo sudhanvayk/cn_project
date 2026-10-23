@@ -181,7 +181,7 @@ When multiple evidence sources implicate a link, confidences are combined via Ba
 | Directory | Contents |
 |---|---|
 | `tests/fixtures/real/` | **Preserved** linear_3 topology fixtures (switches, links, hosts, flows, port stats) |
-| `tests/fixtures/real_diamond/` | **New** diamond topology fixtures in real Ryu format (s1, s2, s3 switches; h1, h2 hosts; flow tables with legacy keys; port stats) |
+| `tests/fixtures/synthetic_diamond/` | **New** diamond topology fixtures in real Ryu format (s1, s2, s3 switches; h1, h2 hosts; flow tables with legacy keys; port stats) |
 
 ### Results
 | Directory | Contents |
@@ -239,7 +239,7 @@ The suite validates three scenarios with real telemetry:
 
 | # | Task | Description | Priority |
 |---|------|-------------|----------|
-| 1 | **Capture real_diamond fixtures from live Ryu** | Re-capture all fixtures (`tests/fixtures/real_diamond/`) from the diamond topology once it is running with real Ryu controller output. Current fixtures are simulated based on real Ryu format but should be validated against actual controller responses. | High |
+| 1 | **Capture synthetic_diamond fixtures from live Ryu** | Re-capture all fixtures (`tests/fixtures/synthetic_diamond/`) from the diamond topology once it is running with real Ryu controller output. Current fixtures are simulated based on real Ryu format but should be validated against actual controller responses. | High |
 | 2 | **Verify against real Ryu controller** | Run the full suite against a live Ryu controller (`ryu-manager ryu.app.rest_topology ryu.app.ofctl_rest ryu.app.simple_switch_13 --observe-links`) with Mininet diamond topology to validate end-to-end flow table reconstruction, path correlation, and rerouting. | High |
 | 3 | **Warm-up ping for host discovery** | Implement warm-up ping or host list file reading in `sdn_topology.py` when `/v1.0/topology/hosts` returns empty (fresh controller). The code handles empty lists gracefully but the warm-up mechanism needs to be wired into the discovery flow. | Medium |
 
@@ -356,7 +356,7 @@ cn_project/
 │   ├── test_packet_parsing.py         # Packet parsing tests
 │   └── fixtures/
 │       ├── real/                      # Linear_3 topology fixtures (preserved)
-│       └── real_diamond/              # Diamond topology fixtures (new)
+│       └── synthetic_diamond/              # Diamond topology fixtures (new)
 ├── results/
 │   ├── demo_localhost/                # Localhost demo outputs
 │   └── 20261019_222731/              # Scenario outputs (healthy/degraded/failed)
