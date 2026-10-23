@@ -121,7 +121,12 @@ def analyze_port_stats_deltas(baseline_stats: dict, current_stats: dict, links: 
             for p in ports:
                 p_no = p.get("port_no")
                 if p_no is not None:
-                    indexed[(str(dpid), int(p_no))] = p
+                    try:
+                        p_str = str(p_no)
+                        p_int = int(p_str, 16 if (len(p_str) > 4 or p_str.startswith("0x")) else 10)
+                        indexed[(str(dpid), p_int)] = p
+                    except (ValueError, TypeError):
+                        indexed[(str(dpid), str(p_no))] = p
         return indexed
 
     base_idx = index_stats(baseline_stats)

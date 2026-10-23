@@ -20,6 +20,35 @@ THRESHOLDS = {
 }
 
 
+def test_analyze_port_stats_deltas_with_local_ports():
+    """Verify analyze_port_stats_deltas handles port_no='LOCAL' without throwing ValueError."""
+    baseline = {
+        "1": [
+            {"port_no": "LOCAL", "rx_packets": 10, "tx_packets": 10},
+            {"port_no": 2, "rx_packets": 100, "tx_packets": 100, "tx_dropped": 0, "rx_dropped": 0, "tx_errors": 0, "rx_errors": 0}
+        ],
+        "2": [
+            {"port_no": "LOCAL", "rx_packets": 5, "tx_packets": 5},
+            {"port_no": 2, "rx_packets": 100, "tx_packets": 100, "tx_dropped": 0, "rx_dropped": 0, "tx_errors": 0, "rx_errors": 0}
+        ]
+    }
+    current = {
+        "1": [
+            {"port_no": "LOCAL", "rx_packets": 12, "tx_packets": 12},
+            {"port_no": 2, "rx_packets": 150, "tx_packets": 200, "tx_dropped": 10, "rx_dropped": 0, "tx_errors": 0, "rx_errors": 0}
+        ],
+        "2": [
+            {"port_no": "LOCAL", "rx_packets": 6, "tx_packets": 6},
+            {"port_no": 2, "rx_packets": 190, "tx_packets": 150, "tx_dropped": 0, "rx_dropped": 0, "tx_errors": 0, "rx_errors": 0}
+        ]
+    }
+    links = [{"source": "s1", "destination": "s2", "src_port": 2, "dst_port": 2}]
+    suspects = analyze_port_stats_deltas(baseline, current, links)
+    assert len(suspects) == 1
+    assert suspects[0]["link"] == ["s1", "s2"]
+    assert suspects[0]["confidence"] >= 0.85
+
+
 def test_classify_path_health_boundaries():
     # Exactly 0% loss, 50.0 ms RTT -> HEALTHY
     status, reason = classify_path_health({"packet_loss_percent": 0.0, "mean_rtt_ms": 50.0}, THRESHOLDS)
