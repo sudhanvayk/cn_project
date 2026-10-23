@@ -89,6 +89,26 @@ def generate_charts(diag_data: dict, output_dir: str) -> str:
     return chart_path
 
 
+def fmt_ms(val) -> str:
+    """Safely format millisecond float value, handling None gracefully."""
+    if val is None:
+        return "N/A"
+    try:
+        return f"{float(val):.2f} ms"
+    except (ValueError, TypeError):
+        return str(val)
+
+
+def fmt_pct(val) -> str:
+    """Safely format percentage float value, handling None gracefully."""
+    if val is None:
+        return "N/A"
+    try:
+        return f"{float(val):.2f}%"
+    except (ValueError, TypeError):
+        return str(val)
+
+
 def generate_markdown_report(report_data: dict, diag_data: dict = None, chart_file: str = None) -> str:
     """Render full markdown analysis document."""
     status = report_data.get("path_status", "UNKNOWN")
@@ -130,14 +150,14 @@ def generate_markdown_report(report_data: dict, diag_data: dict = None, chart_fi
 
 | Performance Metric | Measured Value | Nominal / Threshold Baseline | Health Evaluation |
 |---|---|---|---|
-| **Probes Sent / Received** | `{metrics.get('probes_sent')}` sent / `{metrics.get('probes_received')}` received | `{metrics.get('probes_sent')}` / `{metrics.get('probes_sent')}` | {'OK' if metrics.get('probes_lost') == 0 else 'Drops Detected'} |
-| **Packet Loss Rate** | `{metrics.get('packet_loss_percentage', 0.0):.2f}%` | `<= 0.0%` (Fail: `>= 50.0%`) | {'Normal' if metrics.get('packet_loss_percentage', 0.0) == 0 else 'Threshold Exceeded'} |
-| **Mean RTT** | `{metrics.get('mean_rtt_ms', 0.0):.2f} ms` | `<= 50.0 ms` | {'Normal' if (metrics.get('mean_rtt_ms') or 0.0) <= 50.0 else 'High Latency'} |
-| **Minimum / Maximum RTT** | `{metrics.get('min_rtt_ms', 0.0):.2f} ms` / `{metrics.get('max_rtt_ms', 0.0):.2f} ms` | N/A | Range Spread |
-| **Median RTT** | `{metrics.get('median_rtt_ms', 0.0):.2f} ms` | N/A | Central Tendency |
-| **95th Percentile RTT (p95)** | `{metrics.get('p95_rtt_ms', 0.0):.2f} ms` | N/A | Tail Latency Indicator |
-| **Standard Deviation Jitter** | `{metrics.get('stddev_rtt_ms', 0.0):.2f} ms` | Low variation | Sample Deviation |
-| **RFC 3550 Inter-Arrival Jitter** | `{metrics.get('rfc3550_jitter_ms', 0.0):.2f} ms` | Smoothed $J = J + (|D|-J)/16$ | Statistical Standard |
+| **Probes Sent / Received** | `{metrics.get('probes_sent', 0)}` sent / `{metrics.get('probes_received', 0)}` received | `{metrics.get('probes_sent', 0)}` / `{metrics.get('probes_sent', 0)}` | {'OK' if metrics.get('probes_lost') == 0 else 'Drops Detected'} |
+| **Packet Loss Rate** | `{fmt_pct(metrics.get('packet_loss_percentage'))}` | `<= 0.0%` (Fail: `>= 50.0%`) | {'Normal' if (metrics.get('packet_loss_percentage') or 0.0) == 0 else 'Threshold Exceeded'} |
+| **Mean RTT** | `{fmt_ms(metrics.get('mean_rtt_ms'))}` | `<= 50.0 ms` | {'Normal' if ((metrics.get('mean_rtt_ms') or 0.0) <= 50.0 and metrics.get('mean_rtt_ms') is not None) else ('Failed' if metrics.get('mean_rtt_ms') is None else 'High Latency')} |
+| **Minimum / Maximum RTT** | `{fmt_ms(metrics.get('min_rtt_ms'))}` / `{fmt_ms(metrics.get('max_rtt_ms'))}` | N/A | Range Spread |
+| **Median RTT** | `{fmt_ms(metrics.get('median_rtt_ms'))}` | N/A | Central Tendency |
+| **95th Percentile RTT (p95)** | `{fmt_ms(metrics.get('p95_rtt_ms'))}` | N/A | Tail Latency Indicator |
+| **Standard Deviation Jitter** | `{fmt_ms(metrics.get('stddev_rtt_ms'))}` | Low variation | Sample Deviation |
+| **RFC 3550 Inter-Arrival Jitter** | `{fmt_ms(metrics.get('rfc3550_jitter_ms'))}` | Smoothed $J = J + (|D|-J)/16$ | Statistical Standard |
 
 """
     if chart_file and os.path.exists(chart_file):

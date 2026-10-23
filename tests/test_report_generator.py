@@ -24,6 +24,36 @@ def test_generate_ascii_path_diagram():
     assert "h1 -> s1 -> s3 -> s2 -> h2" in diagram
 
 
+def test_generate_markdown_report_with_none_metrics():
+    """Verify report generation handles 100% loss where all RTT metrics are None."""
+    report_data = {
+        "path_status": "FAILED_PATH",
+        "source_node": "h1",
+        "destination_node": "h2",
+        "destination_ip": "10.0.0.2",
+        "timestamp": "2026-10-23T18:00:00Z",
+        "detailed_metrics": {
+            "probes_sent": 20,
+            "probes_received": 0,
+            "probes_lost": 20,
+            "packet_loss_percentage": 100.0,
+            "min_rtt_ms": None,
+            "max_rtt_ms": None,
+            "mean_rtt_ms": None,
+            "median_rtt_ms": None,
+            "p95_rtt_ms": None,
+            "stddev_rtt_ms": None,
+            "rfc3550_jitter_ms": None,
+        },
+        "active_path": {"path": ["h1", "s1", "s2", "h2"], "hop_count": 3},
+        "suspected_links": [],
+        "ranked_backup_paths": [],
+    }
+    md = generate_markdown_report(report_data)
+    assert "100.00%" in md
+    assert "N/A" in md
+
+
 def test_generate_markdown_and_html_report():
     report_data = {
         "path_status": "DEGRADED_PATH",
