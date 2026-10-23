@@ -20,6 +20,8 @@ Primary Path: h1 -> s1 -> s2 -> h2 (3 hops)
 Alternative:  h1 -> s1 -> s3 -> s2 -> h2 (4 hops)
 """
 
+import json
+import os
 import sys
 
 try:
@@ -65,14 +67,27 @@ class DiamondTopo(Topo):
 topos = {"diamond": (lambda: DiamondTopo())}
 
 
+def get_controller_port():
+    config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "config.json")
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, "r") as f:
+                cfg = json.load(f)
+                return int(cfg.get("controller_openflow_port", 6653))
+        except Exception:
+            pass
+    return 6653
+
+
 def run():
     topo = DiamondTopo()
+    of_port = get_controller_port()
     net = Mininet(
         topo=topo,
-        controller=lambda name: RemoteController(name, ip="127.0.0.1", port=6633),
+        controller=lambda name: RemoteController(name, ip="127.0.0.1", port=of_port),
         switch=OVSSwitch,
         link=TCLink,
-        autoSetMacs=True
+        autoSetMacs=True,
     )
     info("*** Starting Network ***\n")
     net.start()
