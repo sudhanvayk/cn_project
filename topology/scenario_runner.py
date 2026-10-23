@@ -254,12 +254,22 @@ def main():
         h2.cmd(f"PYTHONDONTWRITEBYTECODE=1 {VENV_PYTHON} {probe_server_py} -b 0.0.0.0 -p 9999 > {probe_server_log} 2>&1 &")
         time.sleep(1.0)
 
-        # Helper to run CLI command from h1
-        def run_h1_cli(cmd_str: str) -> str:
+        # Helper to run data-plane probe from h1
+        def run_h1_probe(cmd_str: str) -> str:
             full_cmd = f"PYTHONDONTWRITEBYTECODE=1 {VENV_PYTHON} {SDNSCOPE_CLI} {cmd_str}"
-            log(f"Executing on h1: {full_cmd}")
+            log(f"Executing data-plane probe on h1: {full_cmd}")
             out = h1.cmd(full_cmd)
-            mininet_log.write(f"=== CLI EXEC: {cmd_str} ===\n{out}\n========================\n")
+            mininet_log.write(f"=== H1 DATA-PLANE EXEC: {cmd_str} ===\n{out}\n========================\n")
+            return out
+
+        # Helper to run control-plane management command on host
+        def run_mgmt_cli(cmd_str: str) -> str:
+            full_cmd = f"PYTHONDONTWRITEBYTECODE=1 {VENV_PYTHON} {SDNSCOPE_CLI} {cmd_str}"
+            log(f"Executing management CLI command: {full_cmd}")
+            code, out, err = run_cmd(full_cmd)
+            mininet_log.write(f"=== MGMT CLI EXEC: {cmd_str} (exit {code}) ===\n{out}\n{err}\n========================\n")
+            if code != 0:
+                log(f"[WARN] Command '{cmd_str}' returned exit code {code}: {err.strip()}")
             return out
 
         # Snapshot BEFORE probing
@@ -268,11 +278,11 @@ def main():
 
         # Discover baseline topology with hosts file
         topo_json_path = os.path.join(output_dir, "topology.json")
-        run_h1_cli(f"topo -c ryu -i 127.0.0.1 -p 8080 --hosts-file {hosts_json_path} -o {topo_json_path}")
+        run_mgmt_cli(f"topo -c ryu -i 127.0.0.1 -p 8080 --hosts-file {hosts_json_path} -o {topo_json_path}")
 
         # Enumerate loop-free paths
         paths_json_path = os.path.join(output_dir, "paths.json")
-        run_h1_cli(f"paths -s h1 -d h2 -f {topo_json_path} -o {paths_json_path}")
+        run_mgmt_cli(f"paths -s h1 -d h2 -f {topo_json_path} -o {paths_json_path}")
 
         diag_json_path = os.path.join(output_dir, "diagnostic_result.json")
         report_json_path = os.path.join(output_dir, "correlation_report.json")
@@ -284,13 +294,13 @@ def main():
         # -------------------------------------------------------------
         if args.scenario == "healthy":
             log("Executing HEALTHY scenario: 50 probes at 0.05s interval...")
-            run_h1_cli(f"probe 10.0.0.2 -p 9999 -c 50 --interval 0.05 -o {diag_json_path}")
+            run_h1_probe(f"probe 10.0.0.2 -p 9999 -c 50 --interval 0.05 -o {diag_json_path}")
 
             # Collect AFTER telemetry
             collect_controller_telemetry(args.ryu_url, output_dir, "after")
 
             # Correlate
-            run_h1_cli(
+            run_mgmt_cli(
                 f"correlate -d {diag_json_path} -t {topo_json_path} -s h1 -e h2 "
                 f"--controller {args.ryu_url} "
                 f"--baseline-stats {os.path.join(output_dir, 'before_port_stats.json')} "
@@ -299,7 +309,7 @@ def main():
             )
 
             # Generate reports
-            run_h1_cli(f"report -r {report_json_path} -d {diag_json_path} -m {md_report_path} -H {html_report_path} --dir {output_dir}")
+            run_mgmt_cli(f"report -r {report_json_path} -d {diag_json_path} -m {md_report_path} -H {html_report_path} --dir {output_dir}")
 
         elif args.scenario == "degraded":
             log("Executing DEGRADED scenario: applying 30ms delay & 5% loss to s1-eth2 and s2-eth2...")
@@ -315,7 +325,7 @@ def main():
 
             # Probe with count 100
             log("Running 100 probes at 0.05s interval across impaired link...")
-            run_h1_cli(f"probe 10.0.0.2 -p 9999 -c 100 --interval 0.05 -o {diag_json_path}")
+            run_h1_probe(f"probe 10.0.0.2 -p 9999 -c 100 --interval 0.05 -o {diag_json_path}")
 
             # Record tc qdisc after
             _, tc1_after, _ = run_cmd("tc -s qdisc show dev s1-eth2")
@@ -326,7 +336,7 @@ def main():
             collect_controller_telemetry(args.ryu_url, output_dir, "after")
 
             # Correlate
-            run_h1_cli(
+            run_mgmt_cli(
                 f"correlate -d {diag_json_path} -t {topo_json_path} -s h1 -e h2 "
                 f"--controller {args.ryu_url} "
                 f"--baseline-stats {os.path.join(output_dir, 'before_port_stats.json')} "
@@ -334,14 +344,14 @@ def main():
                 f"-o {report_json_path}"
             )
 
-            run_h1_cli(f"report -r {report_json_path} -d {diag_json_path} -m {md_report_path} -H {html_report_path} --dir {output_dir}")
+            run_mgmt_cli(f"report -r {report_json_path} -d {diag_json_path} -m {md_report_path} -H {html_report_path} --dir {output_dir}")
 
         elif args.scenario in ["failed", "recovery"]:
             log("Executing FAILED scenario: severing primary link s1 <-> s2...")
             net.configLinkStatus("s1", "s2", "down")
 
             log("Running probes on severed link (expecting ~100% loss)...")
-            run_h1_cli(f"probe 10.0.0.2 -p 9999 -c 20 --interval 0.05 --timeout 0.5 -o {diag_json_path}")
+            run_h1_probe(f"probe 10.0.0.2 -p 9999 -c 20 --interval 0.05 --timeout 0.5 -o {diag_json_path}")
 
             # Poll Ryu topology for link removal up to 30s
             log("Polling Ryu topology for link removal event...")
@@ -372,12 +382,12 @@ def main():
 
             # Discover current active topology after link failure
             topo_current_path = os.path.join(output_dir, "topology_current.json")
-            run_h1_cli(f"topo -c ryu -i 127.0.0.1 -p 8080 --hosts-file {hosts_json_path} -o {topo_current_path}")
+            run_mgmt_cli(f"topo -c ryu -i 127.0.0.1 -p 8080 --hosts-file {hosts_json_path} -o {topo_current_path}")
 
             collect_controller_telemetry(args.ryu_url, output_dir, "after")
 
             # Correlate with current topology diffing
-            run_h1_cli(
+            run_mgmt_cli(
                 f"correlate -d {diag_json_path} -t {topo_json_path} -s h1 -e h2 "
                 f"--controller {args.ryu_url} --current-topo {topo_current_path} "
                 f"--baseline-stats {os.path.join(output_dir, 'before_port_stats.json')} "
@@ -385,18 +395,18 @@ def main():
                 f"-o {report_json_path}"
             )
 
-            run_h1_cli(f"report -r {report_json_path} -d {diag_json_path} -m {md_report_path} -H {html_report_path} --dir {output_dir}")
+            run_mgmt_cli(f"report -r {report_json_path} -d {diag_json_path} -m {md_report_path} -H {html_report_path} --dir {output_dir}")
 
             # Reroute dry-run
             reroute_dry_run_txt = os.path.join(output_dir, "reroute_dry_run.txt")
-            dry_out = run_h1_cli(f"reroute -r {report_json_path} -t {topo_json_path} -c {args.ryu_url}")
+            dry_out = run_mgmt_cli(f"reroute -r {report_json_path} -t {topo_json_path} -c {args.ryu_url}")
             with open(reroute_dry_run_txt, "w") as f:
                 f.write(dry_out)
 
             if args.scenario == "recovery":
                 log("Executing RECOVERY: applying backup flow modifications (priority 200)...")
                 reroute_apply_txt = os.path.join(output_dir, "reroute_apply.txt")
-                apply_out = run_h1_cli(f"reroute -r {report_json_path} -t {topo_json_path} -c {args.ryu_url} --apply")
+                apply_out = run_mgmt_cli(f"reroute -r {report_json_path} -t {topo_json_path} -c {args.ryu_url} --apply")
                 with open(reroute_apply_txt, "w") as f:
                     f.write(apply_out)
 
@@ -404,7 +414,7 @@ def main():
 
                 diag_rec_path = os.path.join(output_dir, "diagnostic_result_recovered.json")
                 log("Re-probing along recovered backup path...")
-                run_h1_cli(f"probe 10.0.0.2 -p 9999 -c 50 --interval 0.05 -o {diag_rec_path}")
+                run_h1_probe(f"probe 10.0.0.2 -p 9999 -c 50 --interval 0.05 -o {diag_rec_path}")
 
                 collect_controller_telemetry(args.ryu_url, output_dir, "recovered")
 
@@ -412,12 +422,12 @@ def main():
                 md_rec_path = os.path.join(output_dir, "report_recovered.md")
                 html_rec_path = os.path.join(output_dir, "report_recovered.html")
 
-                run_h1_cli(
+                run_mgmt_cli(
                     f"correlate -d {diag_rec_path} -t {topo_current_path} -s h1 -e h2 "
                     f"--controller {args.ryu_url} "
                     f"-o {report_rec_path}"
                 )
-                run_h1_cli(f"report -r {report_rec_path} -d {diag_rec_path} -m {md_rec_path} -H {html_rec_path} --dir {output_dir}")
+                run_mgmt_cli(f"report -r {report_rec_path} -d {diag_rec_path} -m {md_rec_path} -H {html_rec_path} --dir {output_dir}")
                 log("RECOVERY verification complete!")
 
         log(f"Scenario '{args.scenario}' completed successfully.")
