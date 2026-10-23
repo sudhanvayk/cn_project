@@ -286,7 +286,8 @@ def parse_ryu_hosts(hosts_data: list) -> tuple:
                 "ip": ip,
                 "mac": mac,
                 "connected_to": connected_sw_id,
-                "switch_port": port_info.get("port_no")
+                "switch_port": port_info.get("port_no"),
+                "host_source": "controller"
             })
 
         if connected_sw_id:
@@ -298,7 +299,8 @@ def parse_ryu_hosts(hosts_data: list) -> tuple:
                     "destination": connected_sw_id,
                     "src_port": None,
                     "dst_port": port_info.get("port_no"),
-                    "type": "host-to-switch"
+                    "type": "host-to-switch",
+                    "host_source": "controller"
                 })
     return nodes, links
 
@@ -414,18 +416,86 @@ def parse_opendaylight_topology(raw_json: dict, base_url: str = "") -> dict:
     }
 
 
+def merge_hosts_file(topo: dict, hosts_file: str, logger: logging.Logger = None) -> dict:
+    """
+    Merge host definitions from an external hosts JSON file into the topology.
+    Used when the SDN controller hosts API is empty (e.g. static OpenFlow rules with no packet-ins).
+    Each host entry contains: name/id, mac, ip, dpid, port.
+    Host nodes and links are marked with host_source: 'hosts_file'.
+    """
+    if not hosts_file or not os.path.exists(hosts_file):
+        return topo
+
+    try:
+        with open(hosts_file, "r", encoding="utf-8") as f:
+            hosts_data = json.load(f)
+    except Exception as e:
+        if logger:
+            logger.warning(f"Could not read hosts file {hosts_file}: {e}")
+        return topo
+
+    nodes = list(topo.get("nodes", []))
+    links = list(topo.get("links", []))
+    existing_host_ids = {n["id"] for n in nodes if n.get("type") == "host"}
+    existing_host_ips = {n.get("ip") for n in nodes if n.get("type") == "host" and n.get("ip")}
+
+    for item in hosts_data:
+        h_id = item.get("name") or item.get("id") or ip_to_host_id(item.get("ip", ""))
+        h_ip = item.get("ip")
+        h_mac = item.get("mac", "")
+        raw_dpid = item.get("dpid")
+        connected_sw = dpid_to_switch_id(raw_dpid) if raw_dpid else item.get("connected_to")
+        port_no = int(item.get("port", 1))
+
+        if h_id in existing_host_ids or (h_ip and h_ip in existing_host_ips):
+            continue
+
+        existing_host_ids.add(h_id)
+        if h_ip:
+            existing_host_ips.add(h_ip)
+
+        nodes.append({
+            "id": h_id,
+            "type": "host",
+            "ip": h_ip,
+            "mac": h_mac,
+            "connected_to": connected_sw,
+            "switch_port": port_no,
+            "host_source": "hosts_file",
+        })
+
+        if connected_sw:
+            links.append({
+                "source": h_id,
+                "destination": connected_sw,
+                "src_port": None,
+                "dst_port": port_no,
+                "type": "host-to-switch",
+                "host_source": "hosts_file",
+            })
+
+    topo["nodes"] = nodes
+    topo["links"] = links
+    return topo
+
+
 def discover_topology(controller_type: str, ip: str, port: int,
                       username: str = DEFAULT_USERNAME, password: str = "",
-                      verbose: bool = False) -> dict:
+                      verbose: bool = False, hosts_file: str = None) -> dict:
     """Main dispatch function for SDN topology discovery."""
     logger = setup_logger(verbose)
     ctl_type = controller_type.lower()
     if ctl_type == "ryu":
-        return discover_ryu_topology(ip, port, logger)
+        topo = discover_ryu_topology(ip, port, logger)
     elif ctl_type in ["opendaylight", "odl"]:
-        return discover_opendaylight_topology(ip, port, username, password, logger)
+        topo = discover_opendaylight_topology(ip, port, username, password, logger)
     else:
         raise ValueError(f"Unsupported controller type '{controller_type}'. Use 'ryu' or 'opendaylight'.")
+
+    if hosts_file:
+        topo = merge_hosts_file(topo, hosts_file, logger)
+
+    return topo
 
 
 def diff_topologies(old_topo: dict, new_topo: dict) -> list:
@@ -538,6 +608,7 @@ def main():
     parser.add_argument("-u", "--username", default=cfg["username"], help=f"Controller REST username (default: {cfg['username']})")
     parser.add_argument("-P", "--password", default=cfg.get("password", ""), help="Controller REST password (default: read from config/env)")
     parser.add_argument("-w", "--watch", type=int, nargs="?", const=5, help="Monitor topology continuously every N seconds (default: 5s)")
+    parser.add_argument("--hosts-file", dest="hosts_file", help="Path to hosts JSON file to merge if controller hosts API is empty")
     parser.add_argument("-o", "--output", default=DEFAULT_OUTPUT_FILE, help=f"Output topology JSON filepath (default: {DEFAULT_OUTPUT_FILE})")
     parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose debug logging")
 
@@ -566,7 +637,8 @@ def main():
                 port=port,
                 username=args.username,
                 password=args.password,
-                verbose=args.verbose
+                verbose=args.verbose,
+                hosts_file=args.hosts_file,
             )
             print_topology_summary(topo)
 
