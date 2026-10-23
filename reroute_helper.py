@@ -115,6 +115,132 @@ def generate_flow_entries(path: list, graph: SDNTopologyGraph, dst_ip: str,
     return flow_rules
 
 
+def build_primary_flow_rules(priority: int = 100) -> list:
+    """
+    Generate OpenFlow 1.3 flow entries for the primary path (h1-s1-s2-h2).
+    Both IPv4 (eth_type 2048) and ARP (eth_type 2054) rules are created.
+    """
+    specs = [
+        # s1: dst 10.0.0.2 -> OUTPUT 2 (towards s2); dst 10.0.0.1 -> OUTPUT 1 (towards h1)
+        (1, "10.0.0.2", 2),
+        (1, "10.0.0.1", 1),
+        # s2: dst 10.0.0.2 -> OUTPUT 1 (towards h2); dst 10.0.0.1 -> OUTPUT 2 (towards s1)
+        (2, "10.0.0.2", 1),
+        (2, "10.0.0.1", 2),
+    ]
+    rules = []
+    for dpid, ip, out_port in specs:
+        # IPv4 rule
+        rules.append({
+            "dpid": dpid,
+            "priority": priority,
+            "match": {"eth_type": 2048, "ipv4_dst": ip},
+            "actions": [{"type": "OUTPUT", "port": out_port}],
+        })
+        # ARP rule
+        rules.append({
+            "dpid": dpid,
+            "priority": priority,
+            "match": {"eth_type": 2054, "arp_tpa": ip},
+            "actions": [{"type": "OUTPUT", "port": out_port}],
+        })
+    return rules
+
+
+def build_backup_flow_rules(priority: int = 200) -> list:
+    """
+    Generate OpenFlow 1.3 flow entries for the backup path (h1-s1-s3-s2-h2).
+    Both IPv4 (eth_type 2048) and ARP (eth_type 2054) rules are created.
+    """
+    specs = [
+        # s1: dst 10.0.0.2 -> OUTPUT 3 (towards s3)
+        (1, "10.0.0.2", 3),
+        # s3: dst 10.0.0.2 -> OUTPUT 2 (towards s2); dst 10.0.0.1 -> OUTPUT 1 (towards s1)
+        (3, "10.0.0.2", 2),
+        (3, "10.0.0.1", 1),
+        # s2: dst 10.0.0.1 -> OUTPUT 3 (towards s3)
+        (2, "10.0.0.1", 3),
+    ]
+    rules = []
+    for dpid, ip, out_port in specs:
+        # IPv4 rule
+        rules.append({
+            "dpid": dpid,
+            "priority": priority,
+            "match": {"eth_type": 2048, "ipv4_dst": ip},
+            "actions": [{"type": "OUTPUT", "port": out_port}],
+        })
+        # ARP rule
+        rules.append({
+            "dpid": dpid,
+            "priority": priority,
+            "match": {"eth_type": 2054, "arp_tpa": ip},
+            "actions": [{"type": "OUTPUT", "port": out_port}],
+        })
+    return rules
+
+
+def install_flows_to_controller(flow_rules: list, controller_url: str = DEFAULT_CONTROLLER_URL,
+                                apply_changes: bool = False, delete_first: bool = True,
+                                verbose: bool = False) -> dict:
+    """
+    Send or display flow rules, optionally deleting strict matches first to prevent duplicates.
+    """
+    logger = setup_logger(verbose)
+    base_url = controller_url.rstrip("/")
+    add_url = f"{base_url}/stats/flowentry/add"
+    del_url = f"{base_url}/stats/flowentry/delete_strict"
+    results = []
+
+    for rule in flow_rules:
+        dpid = rule.get("dpid")
+        match = rule.get("match", {})
+        prio = rule.get("priority", 100)
+        out_port = rule.get("actions", [{}])[0].get("port")
+
+        if not apply_changes:
+            results.append({"dpid": dpid, "status": "DRY_RUN", "payload": rule})
+            continue
+
+        if delete_first:
+            del_payload = {"dpid": dpid, "priority": prio, "match": match}
+            try:
+                requests.post(del_url, json=del_payload, timeout=DEFAULT_TIMEOUT)
+            except Exception as e:
+                logger.debug(f"delete_strict failed on dpid {dpid}: {e}")
+
+        try:
+            resp = requests.post(add_url, json=rule, timeout=DEFAULT_TIMEOUT)
+            resp.raise_for_status()
+            logger.info(f"Installed flow on DPID {dpid}: match={match} -> port {out_port} (HTTP {resp.status_code})")
+            results.append({"dpid": dpid, "status": "SUCCESS", "code": resp.status_code})
+        except Exception as e:
+            logger.error(f"Failed to install flow on DPID {dpid}: {e}")
+            results.append({"dpid": dpid, "status": "ERROR", "error": str(e)})
+
+    return {"applied": apply_changes, "rules_count": len(flow_rules), "results": results}
+
+
+def install_primary_flows(controller_url: str = DEFAULT_CONTROLLER_URL,
+                           priority: int = 100, apply_changes: bool = False,
+                           delete_first: bool = True, verbose: bool = False) -> dict:
+    """Install static bidirectional primary flows (h1-s1-s2-h2)."""
+    rules = build_primary_flow_rules(priority=priority)
+    return install_flows_to_controller(rules, controller_url=controller_url,
+                                       apply_changes=apply_changes, delete_first=delete_first,
+                                       verbose=verbose)
+
+
+def install_backup_flows(controller_url: str = DEFAULT_CONTROLLER_URL,
+                          priority: int = 200, apply_changes: bool = False,
+                          delete_first: bool = True, verbose: bool = False) -> dict:
+    """Install static bidirectional backup flows (h1-s1-s3-s2-h2)."""
+    rules = build_backup_flow_rules(priority=priority)
+    return install_flows_to_controller(rules, controller_url=controller_url,
+                                       apply_changes=apply_changes, delete_first=delete_first,
+                                       verbose=verbose)
+
+
 def apply_reroute(flow_rules: list, controller_url: str, apply_changes: bool = False,
                   verbose: bool = False) -> dict:
     """
@@ -166,15 +292,37 @@ def main():
     parser = argparse.ArgumentParser(
         description="Install OpenFlow Rules to Reroute Traffic Along Recommended Backup Path."
     )
+    parser.add_argument("--mode", choices=["reroute", "primary", "backup"], default="reroute",
+                        help="Flow operation mode: reroute (from report), primary (h1-s1-s2-h2), or backup (h1-s1-s3-s2-h2)")
     parser.add_argument("-r", "--report", default=DEFAULT_REPORT_FILE, help=f"Correlation report JSON (default: {DEFAULT_REPORT_FILE})")
     parser.add_argument("-t", "--topo", default=DEFAULT_TOPOLOGY_FILE, help=f"Topology JSON file (default: {DEFAULT_TOPOLOGY_FILE})")
     parser.add_argument("-c", "--controller", default=DEFAULT_CONTROLLER_URL, help=f"SDN controller URL (default: {DEFAULT_CONTROLLER_URL})")
-    parser.add_argument("--priority", type=int, default=DEFAULT_PRIORITY, help=f"OpenFlow rule priority (default: {DEFAULT_PRIORITY})")
+    parser.add_argument("--priority", type=int, default=None, help=f"OpenFlow rule priority (default: 100 for primary, {DEFAULT_PRIORITY} for backup)")
     parser.add_argument("--apply", action="store_true", help="Explicitly apply flow rules (default: dry-run mode)")
     parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose debug logging")
 
     args = parser.parse_args()
 
+    if args.mode == "primary":
+        prio = args.priority if args.priority is not None else 100
+        install_primary_flows(controller_url=args.controller, priority=prio,
+                              apply_changes=args.apply, verbose=args.verbose)
+        if not args.apply:
+            for rule in build_primary_flow_rules(priority=prio):
+                print(json.dumps(rule))
+        return
+
+    if args.mode == "backup":
+        prio = args.priority if args.priority is not None else DEFAULT_PRIORITY
+        install_backup_flows(controller_url=args.controller, priority=prio,
+                             apply_changes=args.apply, verbose=args.verbose)
+        if not args.apply:
+            for rule in build_backup_flow_rules(priority=prio):
+                print(json.dumps(rule))
+        return
+
+    # Default reroute mode
+    prio = args.priority if args.priority is not None else DEFAULT_PRIORITY
     if not os.path.exists(args.report):
         print(f"[ERROR] Correlation report not found: {args.report}", file=sys.stderr)
         sys.exit(1)
