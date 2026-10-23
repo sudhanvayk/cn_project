@@ -1,0 +1,2 @@
+link_removed: True
+detection_time_seconds: 0.01

@@ -4,7 +4,15 @@ Unit tests for SDN Backup Path Flow Rerouting Assistant.
 
 from unittest.mock import MagicMock, patch
 
-from reroute_helper import apply_reroute, extract_dpid_num, generate_flow_entries
+from reroute_helper import (
+    apply_reroute,
+    build_backup_flow_rules,
+    build_primary_flow_rules,
+    extract_dpid_num,
+    generate_flow_entries,
+    install_backup_flows,
+    install_primary_flows,
+)
 from topology_graph import SDNTopologyGraph
 
 
@@ -59,6 +67,48 @@ def test_generate_flow_entries():
     assert rules[2]["actions"][0]["port"] == 1
 
 
+def test_generate_flow_entries_bidirectional():
+    graph = build_test_graph()
+    path = ["h1", "s1", "s3", "s2", "h2"]
+    rules = generate_flow_entries(
+        path,
+        graph,
+        dst_ip="10.0.0.2",
+        priority=200,
+        bidirectional=True,
+        src_ip=None,  # Inferred from graph h1
+        include_arp=True,
+    )
+
+    # 3 switches * 2 protocols (IPv4, ARP) * 2 directions = 12 rules
+    assert len(rules) == 12
+
+    # Index rules by (dpid, eth_type, target_ip) -> out_port
+    rule_map = {}
+    for r in rules:
+        dpid = r["dpid"]
+        eth_type = r["match"]["eth_type"]
+        target = r["match"].get("ipv4_dst") or r["match"].get("arp_tpa")
+        port = r["actions"][0]["port"]
+        rule_map[(dpid, eth_type, target)] = port
+
+    # Verify forward flows (to 10.0.0.2)
+    assert rule_map[(1, 2048, "10.0.0.2")] == 3  # s1 -> s3
+    assert rule_map[(1, 2054, "10.0.0.2")] == 3
+    assert rule_map[(3, 2048, "10.0.0.2")] == 2  # s3 -> s2
+    assert rule_map[(3, 2054, "10.0.0.2")] == 2
+    assert rule_map[(2, 2048, "10.0.0.2")] == 1  # s2 -> h2
+    assert rule_map[(2, 2054, "10.0.0.2")] == 1
+
+    # Verify reverse flows (to 10.0.0.1)
+    assert rule_map[(2, 2048, "10.0.0.1")] == 3  # s2 -> s3
+    assert rule_map[(2, 2054, "10.0.0.1")] == 3
+    assert rule_map[(3, 2048, "10.0.0.1")] == 1  # s3 -> s1
+    assert rule_map[(3, 2054, "10.0.0.1")] == 1
+    assert rule_map[(1, 2048, "10.0.0.1")] == 1  # s1 -> h1
+    assert rule_map[(1, 2054, "10.0.0.1")] == 1
+
+
 @patch("requests.post")
 def test_apply_reroute_live(mock_post):
     resp = MagicMock()
@@ -80,3 +130,49 @@ def test_apply_reroute_dry_run():
     assert res["applied"] is False
     assert res["rules_count"] == 1
     assert res["results"][0]["status"] == "DRY_RUN"
+
+
+def test_build_primary_flow_rules():
+    rules = build_primary_flow_rules(priority=100)
+    # 4 specs * 2 (IPv4 + ARP) = 8 rules
+    assert len(rules) == 8
+    # Check s1 rules
+    s1_rules = [r for r in rules if r["dpid"] == 1]
+    assert len(s1_rules) == 4
+    # Check s1 forward to 10.0.0.2 via port 2
+    s1_fwd_ipv4 = [r for r in s1_rules if r["match"].get("ipv4_dst") == "10.0.0.2"][0]
+    assert s1_fwd_ipv4["actions"][0]["port"] == 2
+    assert s1_fwd_ipv4["priority"] == 100
+
+
+def test_build_backup_flow_rules():
+    rules = build_backup_flow_rules(priority=200)
+    # 4 specs * 2 (IPv4 + ARP) = 8 rules
+    assert len(rules) == 8
+    # s1 to 10.0.0.2 should now output to port 3
+    s1_fwd = [r for r in rules if r["dpid"] == 1 and r["match"].get("ipv4_dst") == "10.0.0.2"][0]
+    assert s1_fwd["actions"][0]["port"] == 3
+    assert s1_fwd["priority"] == 200
+    # s3 rules present
+    s3_rules = [r for r in rules if r["dpid"] == 3]
+    assert len(s3_rules) == 4
+
+
+@patch("requests.post")
+def test_install_primary_flows_live(mock_post):
+    resp = MagicMock()
+    resp.status_code = 200
+    mock_post.return_value = resp
+
+    res = install_primary_flows("http://127.0.0.1:8080", priority=100, apply_changes=True, delete_first=True)
+    assert res["applied"] is True
+    assert res["rules_count"] == 8
+    # delete_strict + add for each of 8 rules = 16 calls
+    assert mock_post.call_count == 16
+
+
+def test_install_backup_flows_dry_run():
+    res = install_backup_flows("http://127.0.0.1:8080", priority=200, apply_changes=False)
+    assert res["applied"] is False
+    assert res["rules_count"] == 8
+    assert all(r["status"] == "DRY_RUN" for r in res["results"])

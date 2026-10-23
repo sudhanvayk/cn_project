@@ -1,0 +1,44 @@
+{
+  "timestamp": "2026-10-23T13:34:31Z",
+  "path_status": "HEALTHY_PATH",
+  "source_node": "h1",
+  "destination_node": "h2",
+  "destination_ip": "10.0.0.2",
+  "path_source": "flow_table",
+  "active_path": {
+    "path": [
+      "h1",
+      "s1",
+      "s3",
+      "s2",
+      "h2"
+    ],
+    "path_str": "h1 -> s1 -> s3 -> s2 -> h2",
+    "hop_count": 4,
+    "source": "flow_table"
+  },
+  "failed_path_reason": "None (Path is healthy and operating within nominal thresholds)",
+  "packet_loss_percentage": 0.0,
+  "mean_rtt": 19.943,
+  "suspected_links": [],
+  "ranked_backup_paths": [],
+  "recommended_backup_path": null,
+  "detailed_metrics": {
+    "probes_sent": 50,
+    "probes_received": 50,
+    "probes_lost": 0,
+    "packet_loss_percentage": 0.0,
+    "min_rtt_ms": 14.739,
+    "max_rtt_ms": 32.335,
+    "mean_rtt_ms": 19.943,
+    "median_rtt_ms": 18.886,
+    "stddev_rtt_ms": 3.976,
+    "rfc3550_jitter_ms": 3.745,
+    "p95_rtt_ms": 28.283
+  },
+  "thresholds": {
+    "degraded_rtt_ms": 50.0,
+    "degraded_packet_loss_percent": 0.0,
+    "failed_packet_loss_percent": 50.0
+  }
+}

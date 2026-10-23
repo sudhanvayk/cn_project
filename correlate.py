@@ -20,6 +20,7 @@ import sys
 import time
 
 from flow_inspector import FlowInspector
+from sdn_topology import dpid_to_switch_id
 from topology_graph import SDNTopologyGraph
 
 DEFAULT_CONFIG_PATH = "config.json"
@@ -120,7 +121,12 @@ def analyze_port_stats_deltas(baseline_stats: dict, current_stats: dict, links: 
             for p in ports:
                 p_no = p.get("port_no")
                 if p_no is not None:
-                    indexed[(str(dpid), int(p_no))] = p
+                    try:
+                        p_str = str(p_no)
+                        p_int = int(p_str, 16 if (len(p_str) > 4 or p_str.startswith("0x")) else 10)
+                        indexed[(str(dpid), p_int)] = p
+                    except (ValueError, TypeError):
+                        indexed[(str(dpid), str(p_no))] = p
         return indexed
 
     base_idx = index_stats(baseline_stats)
@@ -447,10 +453,13 @@ def correlate(diag_file: str, topo_file: str, source_node: str,
                     if resp.status == 200:
                         raw_c_links = json.loads(resp.read().decode("utf-8"))
                         for cl in raw_c_links:
-                            s_dpid = int(cl.get("src", {}).get("dpid", 0))
-                            d_dpid = int(cl.get("dst", {}).get("dpid", 0))
-                            if s_dpid and d_dpid:
-                                active_topo_links.append({"source": f"s{s_dpid}", "destination": f"s{d_dpid}"})
+                            s_raw = cl.get("src", {}).get("dpid")
+                            d_raw = cl.get("dst", {}).get("dpid")
+                            if s_raw and d_raw:
+                                active_topo_links.append({
+                                    "source": dpid_to_switch_id(s_raw),
+                                    "destination": dpid_to_switch_id(d_raw)
+                                })
                         # Add known host-to-switch links from baseline topology
                         for h_id, h_node in graph.nodes.items():
                             if h_node.get("type") == "host":

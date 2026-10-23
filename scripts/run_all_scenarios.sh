@@ -1,55 +1,98 @@
 #!/usr/bin/env bash
-# Run all three diagnostic scenarios automatically and generate full reports
-set -e
+# Run all real SDN diagnostic scenarios in fresh Mininet + Ryu sessions.
+# Output is saved to results/real_<YYYYmmdd_HHMMSS>/{healthy,degraded,failed,recovery}/
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 cd "$ROOT_DIR"
 
-PYTHON_BIN="python3"
-if [ -f "$ROOT_DIR/.venv/bin/python3" ]; then
-    PYTHON_BIN="$ROOT_DIR/.venv/bin/python3"
-fi
-
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-RUN_DIR="results/$TIMESTAMP"
+RUN_NAME="real_$TIMESTAMP"
+RUN_DIR="$ROOT_DIR/results/$RUN_NAME"
 mkdir -p "$RUN_DIR"
 
 echo "======================================================================"
-echo "          AUTOMATED EXECUTION OF ALL 3 SDN DIAGNOSTIC SCENARIOS       "
+echo "      REAL MININET + RYU SDN DIAGNOSTIC AND PATH ANALYSIS RUN         "
 echo "======================================================================"
-echo " Results Directory: $RUN_DIR"
+echo " Run Directory: $RUN_DIR"
+echo " Started At:    $(date)"
 echo "----------------------------------------------------------------------"
 
-# 1. Healthy
-echo -e "\n>>> EXECUTING SCENARIO A: HEALTHY PATH <<<"
-"$SCRIPT_DIR/scenario_healthy.sh" "$RUN_DIR/scenario_healthy"
+# Ensure pre-flight passes
+sudo -n true || { echo "[ERROR] Sudo access failed"; exit 1; }
 
-# 2. Degraded
-echo -e "\n>>> EXECUTING SCENARIO B: DEGRADED / CONGESTED PATH <<<"
-"$SCRIPT_DIR/scenario_degraded.sh" "$RUN_DIR/scenario_degraded"
+# Record environment metadata to env.txt
+ENV_TXT="$RUN_DIR/env.txt"
+{
+    echo "=== Environment Metadata ==="
+    echo "Date: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+    echo "Hostname: $(hostname)"
+    echo "Kernel: $(uname -a)"
+    echo "Git Branch: $(git branch --show-current 2>/dev/null || echo 'unknown')"
+    echo "Git Commit: $(git rev-parse HEAD 2>/dev/null || echo 'unknown')"
+    echo "System Python: $(python3 --version 2>&1)"
+    echo "Venv Python: $(.venv/bin/python --version 2>&1 || echo 'none')"
+    echo "Ryu Version: $($HOME/ryu-env/bin/ryu-manager --version 2>&1 || echo 'none')"
+    echo "Mininet Version: $(mn --version 2>&1 || echo 'none')"
+    echo "OVS Version: $(ovs-vsctl --version 2>&1 | head -n 1)"
+} > "$ENV_TXT"
 
-# 3. Failed
-echo -e "\n>>> EXECUTING SCENARIO C: FAILED PATH & REROUTE <<<"
-"$SCRIPT_DIR/scenario_failed.sh" "$RUN_DIR/scenario_failed"
+cleanup_session() {
+    sudo mn -c >/dev/null 2>&1 || true
+    "$SCRIPT_DIR/run_ryu.sh" stop >/dev/null 2>&1 || true
+    pkill -9 -f "probe_server.py" 2>/dev/null || true
+    sleep 1
+}
 
-# 4. Generate Comprehensive Report from Degraded or Latest Result
-echo -e "\n>>> GENERATING EXECUTIVE REPORT (MARKDOWN, HTML, CHARTS) <<<"
-$PYTHON_BIN report_generator.py \
-    -r "$RUN_DIR/scenario_degraded/correlation_report.json" \
-    -d "$RUN_DIR/scenario_degraded/diagnostic_result.json" \
-    -m "$RUN_DIR/report.md" \
-    -H "$RUN_DIR/report.html" \
-    --dir "$RUN_DIR"
+run_scenario() {
+    local scenario="$1"
+    local sc_dir="$RUN_DIR/$scenario"
+    mkdir -p "$sc_dir"
 
-# Link as latest
-rm -f results/latest
-ln -sf "$TIMESTAMP" results/latest
+    echo -e "\n======================================================================"
+    echo ">>> EXECUTING REAL SCENARIO: $(echo "$scenario" | tr '[:lower:]' '[:upper:]') <<<"
+    echo "======================================================================"
 
-echo "======================================================================"
-echo " All scenarios executed successfully!"
-echo " Reports available at:"
-echo "   - Markdown: $RUN_DIR/report.md"
-echo "   - HTML:     $RUN_DIR/report.html"
-echo "   - Charts:   $RUN_DIR/rtt_timeseries.png"
-echo "======================================================================"
+    cleanup_session
+
+    local ryu_log="$sc_dir/ryu.log"
+    "$SCRIPT_DIR/run_ryu.sh" start "$ryu_log"
+
+    echo "[INFO] Running Mininet scenario orchestrator for: $scenario"
+    sudo python3 "$ROOT_DIR/topology/scenario_runner.py" "$scenario" -o "$sc_dir"
+
+    cleanup_session
+    echo "[INFO] Scenario $scenario finished."
+}
+
+# Run all 4 scenario phases
+SCENARIOS=("healthy" "degraded" "failed" "recovery")
+for sc in "${SCENARIOS[@]}"; do
+    run_scenario "$sc"
+done
+
+# Fix ownership so non-root user owns all results
+sudo chown -R sudh:sudh "$RUN_DIR" "$ROOT_DIR" 2>/dev/null || true
+
+# Check that core artifacts exist for all scenarios
+GATES_PASSED=1
+for sc in "${SCENARIOS[@]}"; do
+    if [ ! -f "$RUN_DIR/$sc/diagnostic_result.json" ] || [ ! -f "$RUN_DIR/$sc/correlation_report.json" ]; then
+        echo "[ERROR] Missing critical results in $RUN_DIR/$sc"
+        GATES_PASSED=0
+    fi
+done
+
+if [ "$GATES_PASSED" -eq 1 ]; then
+    rm -f results/latest
+    ln -sf "$RUN_NAME" results/latest
+    echo -e "\n======================================================================"
+    echo " [SUCCESS] All scenarios completed successfully!"
+    echo " Real results linked to: results/latest -> $RUN_NAME"
+    echo " Results folder: $RUN_DIR"
+    echo "======================================================================"
+else
+    echo -e "\n[WARNING] Some scenario verification gates failed. results/latest was NOT updated."
+    exit 1
+fi

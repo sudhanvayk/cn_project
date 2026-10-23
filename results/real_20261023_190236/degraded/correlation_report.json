@@ -1,0 +1,85 @@
+{
+  "timestamp": "2026-10-23T13:33:34Z",
+  "path_status": "DEGRADED_PATH",
+  "source_node": "h1",
+  "destination_node": "h2",
+  "destination_ip": "10.0.0.2",
+  "path_source": "flow_table",
+  "active_path": {
+    "path": [
+      "h1",
+      "s1",
+      "s2",
+      "h2"
+    ],
+    "path_str": "h1 -> s1 -> s2 -> h2",
+    "hop_count": 3,
+    "source": "flow_table"
+  },
+  "failed_path_reason": "Path degradation detected: packet loss of 10.00% detected and mean RTT (73.32 ms) exceeds latency limit (50.00 ms).",
+  "packet_loss_percentage": 10.0,
+  "mean_rtt": 73.32,
+  "suspected_links": [
+    {
+      "link": [
+        "s1",
+        "s2"
+      ],
+      "link_str": "s1 <---> s2",
+      "confidence": 0.6,
+      "evidence": [
+        "Inferred from end-to-end packet loss / latency anomaly across active route"
+      ]
+    }
+  ],
+  "ranked_backup_paths": [
+    {
+      "path": [
+        "h1",
+        "s1",
+        "s3",
+        "s2",
+        "h2"
+      ],
+      "path_str": "h1 -> s1 -> s3 -> s2 -> h2",
+      "hop_count": 4,
+      "extra_hops": 1,
+      "status": "VIABLE_BACKUP",
+      "is_viable": true,
+      "rank": 1
+    }
+  ],
+  "recommended_backup_path": {
+    "path": [
+      "h1",
+      "s1",
+      "s3",
+      "s2",
+      "h2"
+    ],
+    "path_str": "h1 -> s1 -> s3 -> s2 -> h2",
+    "hop_count": 4,
+    "extra_hops": 1,
+    "status": "VIABLE_BACKUP",
+    "is_viable": true,
+    "rank": 1
+  },
+  "detailed_metrics": {
+    "probes_sent": 100,
+    "probes_received": 90,
+    "probes_lost": 10,
+    "packet_loss_percentage": 10.0,
+    "min_rtt_ms": 65.917,
+    "max_rtt_ms": 243.855,
+    "mean_rtt_ms": 73.32,
+    "median_rtt_ms": 69.573,
+    "stddev_rtt_ms": 19.175,
+    "rfc3550_jitter_ms": 10.96,
+    "p95_rtt_ms": 87.336
+  },
+  "thresholds": {
+    "degraded_rtt_ms": 50.0,
+    "degraded_packet_loss_percent": 0.0,
+    "failed_packet_loss_percent": 50.0
+  }
+}

@@ -174,7 +174,8 @@ def cmd_topo(args):
     password = args.password or cfg.get("password", "")
 
     try:
-        topo = discover_topology(ctl_type, ip, port, username, password, verbose=args.verbose)
+        hosts_file = getattr(args, "hosts_file", None)
+        topo = discover_topology(ctl_type, ip, port, username, password, verbose=args.verbose, hosts_file=hosts_file)
         print_topology_summary(topo)
         if args.output:
             with open(args.output, "w", encoding="utf-8") as f:
@@ -367,7 +368,19 @@ def cmd_reroute(args):
     graph = SDNTopologyGraph()
     graph.load_from_file(topo_file)
 
-    rules = generate_flow_entries(backup_path, graph, dst_ip, priority=args.priority)
+    prio = args.priority if args.priority is not None else 200
+    src_node = report_data.get("source_node", "h1")
+    src_ip = graph.nodes.get(src_node, {}).get("ip")
+
+    rules = generate_flow_entries(
+        backup_path,
+        graph,
+        dst_ip,
+        priority=prio,
+        bidirectional=True,
+        src_ip=src_ip,
+        include_arp=True,
+    )
     apply_reroute(rules, controller_url=args.controller, apply_changes=args.apply, verbose=args.verbose)
 
 
@@ -436,6 +449,7 @@ def main():
     p_topo.add_argument("-p", "--port", type=int, help="Controller REST port")
     p_topo.add_argument("-u", "--username", help="Controller REST username")
     p_topo.add_argument("-P", "--password", help="Controller REST password")
+    p_topo.add_argument("--hosts-file", dest="hosts_file", help="Path to hosts JSON file to merge if controller hosts API is empty")
     p_topo.add_argument("-o", "--output", default="topology.json", help="Output JSON filepath (default: topology.json)")
     p_topo.set_defaults(func=cmd_topo)
 

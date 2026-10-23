@@ -8,6 +8,7 @@ from sdn_topology import (
     dpid_to_switch_id,
     ip_to_host_id,
     load_config,
+    merge_hosts_file,
     normalize_dpid,
     parse_opendaylight_topology,
     parse_ryu_hosts,
@@ -155,3 +156,34 @@ def test_normalize_dpid_and_decimal():
     assert dpid_to_decimal("1") == 1
     assert dpid_to_decimal("s1") == 1
     assert dpid_to_decimal("0000000000000003") == 3
+
+
+def test_merge_hosts_file(tmp_path):
+    """Verify hosts file merge populates hosts with host_source: hosts_file."""
+    import json
+
+    hosts_file = tmp_path / "hosts.json"
+    hosts_data = [
+        {"name": "h1", "mac": "00:00:00:00:00:01", "ip": "10.0.0.1", "dpid": "0000000000000001", "port": 1},
+        {"name": "h2", "mac": "00:00:00:00:00:02", "ip": "10.0.0.2", "dpid": "0000000000000002", "port": 1},
+    ]
+    hosts_file.write_text(json.dumps(hosts_data))
+
+    topo = {
+        "nodes": [{"id": "s1", "type": "switch"}, {"id": "s2", "type": "switch"}],
+        "links": [{"source": "s1", "destination": "s2", "type": "switch-to-switch"}]
+    }
+
+    merged = merge_hosts_file(topo, str(hosts_file))
+    host_nodes = [n for n in merged["nodes"] if n["type"] == "host"]
+    assert len(host_nodes) == 2
+    assert host_nodes[0]["id"] == "h1"
+    assert host_nodes[0]["host_source"] == "hosts_file"
+    assert host_nodes[0]["connected_to"] == "s1"
+    assert host_nodes[1]["id"] == "h2"
+    assert host_nodes[1]["host_source"] == "hosts_file"
+    assert host_nodes[1]["connected_to"] == "s2"
+
+    host_links = [lnk for lnk in merged["links"] if lnk.get("type") == "host-to-switch"]
+    assert len(host_links) == 2
+    assert host_links[0]["host_source"] == "hosts_file"

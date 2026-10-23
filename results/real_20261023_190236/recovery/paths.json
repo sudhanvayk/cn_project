@@ -1,0 +1,61 @@
+{
+  "source": "h1",
+  "destination": "h2",
+  "comparison": {
+    "total_paths": 2,
+    "selected_shortest_path": {
+      "path": [
+        "h1",
+        "s1",
+        "s2",
+        "h2"
+      ],
+      "path_str": "h1 -> s1 -> s2 -> h2",
+      "hop_count": 3
+    },
+    "alternative_paths": [
+      {
+        "rank": 2,
+        "path": [
+          "h1",
+          "s1",
+          "s3",
+          "s2",
+          "h2"
+        ],
+        "path_str": "h1 -> s1 -> s3 -> s2 -> h2",
+        "hop_count": 4,
+        "extra_hops": 1
+      }
+    ],
+    "comparison": [
+      {
+        "rank": 1,
+        "role": "SELECTED_SHORTEST",
+        "path": [
+          "h1",
+          "s1",
+          "s2",
+          "h2"
+        ],
+        "path_str": "h1 -> s1 -> s2 -> h2",
+        "hop_count": 3,
+        "extra_hops": 0
+      },
+      {
+        "rank": 2,
+        "role": "ALTERNATIVE",
+        "path": [
+          "h1",
+          "s1",
+          "s3",
+          "s2",
+          "h2"
+        ],
+        "path_str": "h1 -> s1 -> s3 -> s2 -> h2",
+        "hop_count": 4,
+        "extra_hops": 1
+      }
+    ]
+  }
+}

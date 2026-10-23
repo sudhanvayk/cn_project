@@ -157,6 +157,20 @@ class FlowInspector:
         matching_rules.sort(key=lambda x: x[0], reverse=True)
         return matching_rules[0][1]
 
+    @staticmethod
+    def _ports_match(p1, p2) -> bool:
+        """Safely match port identifiers across integer and zero-padded hex formats."""
+        if p1 is None or p2 is None:
+            return False
+        try:
+            s1 = str(p1)
+            s2 = str(p2)
+            v1 = int(s1, 16) if (len(s1) > 4 or s1.startswith("0x")) else int(s1)
+            v2 = int(s2, 16) if (len(s2) > 4 or s2.startswith("0x")) else int(s2)
+            return v1 == v2
+        except (ValueError, TypeError):
+            return str(p1).lower() == str(p2).lower()
+
     def find_link_by_egress_port(self, current_switch: str, port_no: int) -> dict:
         """Find link in topology originating from current_switch on given port."""
         for link in self.graph.links:
@@ -165,9 +179,9 @@ class FlowInspector:
             src_p = link.get("src_port")
             dst_p = link.get("dst_port")
 
-            if src == current_switch and src_p == port_no:
+            if src == current_switch and self._ports_match(src_p, port_no):
                 return {"next_node": dst, "link": link}
-            elif dst == current_switch and dst_p == port_no:
+            elif dst == current_switch and self._ports_match(dst_p, port_no):
                 return {"next_node": src, "link": link}
         return None
 

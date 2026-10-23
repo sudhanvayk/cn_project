@@ -5,6 +5,7 @@
   "payload_size": 64,
   "sdn_controller_type": "ryu",
   "controller_ip": "127.0.0.1",
+  "controller_openflow_port": 6653,
   "ryu_port": 8080,
   "opendaylight_port": 8181,
   "username": "admin",

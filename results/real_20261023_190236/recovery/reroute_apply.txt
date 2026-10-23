@@ -1,0 +1,34 @@
+========================================================================
+           SDN AUTOMATED BACKUP PATH REROUTING ASSISTANT
+========================================================================
+ Target Controller: http://127.0.0.1:8080/stats/flowentry/add
+ Execution Mode:    *** LIVE APPLY ***
+ Total Rules:       12
+------------------------------------------------------------------------
+Rule #1: Switch DPID 1 | Match: {'ipv4_dst': '10.0.0.2', 'eth_type': 2048} | Action: OUTPUT port 3
+[INFO] Successfully installed rule #1 on DPID 1 (HTTP 200)
+Rule #2: Switch DPID 1 | Match: {'arp_tpa': '10.0.0.2', 'eth_type': 2054} | Action: OUTPUT port 3
+[INFO] Successfully installed rule #2 on DPID 1 (HTTP 200)
+Rule #3: Switch DPID 3 | Match: {'ipv4_dst': '10.0.0.2', 'eth_type': 2048} | Action: OUTPUT port 2
+[INFO] Successfully installed rule #3 on DPID 3 (HTTP 200)
+Rule #4: Switch DPID 3 | Match: {'arp_tpa': '10.0.0.2', 'eth_type': 2054} | Action: OUTPUT port 2
+[INFO] Successfully installed rule #4 on DPID 3 (HTTP 200)
+Rule #5: Switch DPID 2 | Match: {'ipv4_dst': '10.0.0.2', 'eth_type': 2048} | Action: OUTPUT port 1
+[INFO] Successfully installed rule #5 on DPID 2 (HTTP 200)
+Rule #6: Switch DPID 2 | Match: {'arp_tpa': '10.0.0.2', 'eth_type': 2054} | Action: OUTPUT port 1
+[INFO] Successfully installed rule #6 on DPID 2 (HTTP 200)
+Rule #7: Switch DPID 2 | Match: {'ipv4_dst': '10.0.0.1', 'eth_type': 2048} | Action: OUTPUT port 3
+[INFO] Successfully installed rule #7 on DPID 2 (HTTP 200)
+Rule #8: Switch DPID 2 | Match: {'arp_tpa': '10.0.0.1', 'eth_type': 2054} | Action: OUTPUT port 3
+[INFO] Successfully installed rule #8 on DPID 2 (HTTP 200)
+Rule #9: Switch DPID 3 | Match: {'ipv4_dst': '10.0.0.1', 'eth_type': 2048} | Action: OUTPUT port 1
+[INFO] Successfully installed rule #9 on DPID 3 (HTTP 200)
+Rule #10: Switch DPID 3 | Match: {'arp_tpa': '10.0.0.1', 'eth_type': 2054} | Action: OUTPUT port 1
+[INFO] Successfully installed rule #10 on DPID 3 (HTTP 200)
+Rule #11: Switch DPID 1 | Match: {'ipv4_dst': '10.0.0.1', 'eth_type': 2048} | Action: OUTPUT port 1
+[INFO] Successfully installed rule #11 on DPID 1 (HTTP 200)
+Rule #12: Switch DPID 1 | Match: {'arp_tpa': '10.0.0.1', 'eth_type': 2054} | Action: OUTPUT port 1
+[INFO] Successfully installed rule #12 on DPID 1 (HTTP 200)
+------------------------------------------------------------------------
+[SUCCESS] All rerouting flow modifications dispatched to controller.
+========================================================================
