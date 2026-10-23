@@ -20,8 +20,9 @@ if PROJECT_ROOT not in sys.path:
 from mininet.link import TCLink
 from mininet.net import Mininet
 from mininet.node import OVSSwitch, RemoteController
-from topology.diamond_topo import DiamondTopo
+
 from reroute_helper import install_primary_flows
+from topology.diamond_topo import DiamondTopo
 
 
 def log(msg):
