@@ -138,6 +138,17 @@ def dpid_to_switch_id(dpid_str: str) -> str:
         return str(dpid_str)
 
 
+def normalize_port_no(raw_port):
+    """Normalize port number to int (handles hex string like '00000002' or int 2)."""
+    if raw_port is None:
+        return None
+    try:
+        s = str(raw_port)
+        return int(s, 16) if (len(s) > 4 or s.startswith("0x")) else int(s)
+    except (ValueError, TypeError):
+        return raw_port
+
+
 def ip_to_host_id(ip_str: str, index: int = 1) -> str:
     """Generate canonical host ID like 'h1' or 'host:10.0.0.1'."""
     if not ip_str or ip_str == "*":
@@ -211,11 +222,20 @@ def parse_ryu_switches(switches_data: list) -> list:
             raw_dpid = str(sw)
             ports = []
         sw_id = dpid_to_switch_id(raw_dpid)
+        normalized_ports = []
+        for p in ports:
+            if isinstance(p, dict):
+                p_copy = dict(p)
+                p_copy["port_no"] = normalize_port_no(p.get("port_no"))
+                normalized_ports.append(p_copy)
+            else:
+                normalized_ports.append(p)
+
         nodes.append({
             "id": sw_id,
             "type": "switch",
             "dpid": raw_dpid,
-            "ports": ports
+            "ports": normalized_ports
         })
     return nodes
 
@@ -236,8 +256,8 @@ def parse_ryu_links(links_data: list) -> list:
             links.append({
                 "source": src_id,
                 "destination": dst_id,
-                "src_port": link_item.get("src", {}).get("port_no"),
-                "dst_port": link_item.get("dst", {}).get("port_no"),
+                "src_port": normalize_port_no(link_item.get("src", {}).get("port_no")),
+                "dst_port": normalize_port_no(link_item.get("dst", {}).get("port_no")),
                 "type": "switch-to-switch"
             })
     return links
