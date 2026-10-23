@@ -368,7 +368,19 @@ def cmd_reroute(args):
     graph = SDNTopologyGraph()
     graph.load_from_file(topo_file)
 
-    rules = generate_flow_entries(backup_path, graph, dst_ip, priority=args.priority)
+    prio = args.priority if args.priority is not None else 200
+    src_node = report_data.get("source_node", "h1")
+    src_ip = graph.nodes.get(src_node, {}).get("ip")
+
+    rules = generate_flow_entries(
+        backup_path,
+        graph,
+        dst_ip,
+        priority=prio,
+        bidirectional=True,
+        src_ip=src_ip,
+        include_arp=True,
+    )
     apply_reroute(rules, controller_url=args.controller, apply_changes=args.apply, verbose=args.verbose)
 
 

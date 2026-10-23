@@ -67,6 +67,48 @@ def test_generate_flow_entries():
     assert rules[2]["actions"][0]["port"] == 1
 
 
+def test_generate_flow_entries_bidirectional():
+    graph = build_test_graph()
+    path = ["h1", "s1", "s3", "s2", "h2"]
+    rules = generate_flow_entries(
+        path,
+        graph,
+        dst_ip="10.0.0.2",
+        priority=200,
+        bidirectional=True,
+        src_ip=None,  # Inferred from graph h1
+        include_arp=True,
+    )
+
+    # 3 switches * 2 protocols (IPv4, ARP) * 2 directions = 12 rules
+    assert len(rules) == 12
+
+    # Index rules by (dpid, eth_type, target_ip) -> out_port
+    rule_map = {}
+    for r in rules:
+        dpid = r["dpid"]
+        eth_type = r["match"]["eth_type"]
+        target = r["match"].get("ipv4_dst") or r["match"].get("arp_tpa")
+        port = r["actions"][0]["port"]
+        rule_map[(dpid, eth_type, target)] = port
+
+    # Verify forward flows (to 10.0.0.2)
+    assert rule_map[(1, 2048, "10.0.0.2")] == 3  # s1 -> s3
+    assert rule_map[(1, 2054, "10.0.0.2")] == 3
+    assert rule_map[(3, 2048, "10.0.0.2")] == 2  # s3 -> s2
+    assert rule_map[(3, 2054, "10.0.0.2")] == 2
+    assert rule_map[(2, 2048, "10.0.0.2")] == 1  # s2 -> h2
+    assert rule_map[(2, 2054, "10.0.0.2")] == 1
+
+    # Verify reverse flows (to 10.0.0.1)
+    assert rule_map[(2, 2048, "10.0.0.1")] == 3  # s2 -> s3
+    assert rule_map[(2, 2054, "10.0.0.1")] == 3
+    assert rule_map[(3, 2048, "10.0.0.1")] == 1  # s3 -> s1
+    assert rule_map[(3, 2054, "10.0.0.1")] == 1
+    assert rule_map[(1, 2048, "10.0.0.1")] == 1  # s1 -> h1
+    assert rule_map[(1, 2054, "10.0.0.1")] == 1
+
+
 @patch("requests.post")
 def test_apply_reroute_live(mock_post):
     resp = MagicMock()

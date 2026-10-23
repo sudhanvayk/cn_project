@@ -43,22 +43,11 @@ def extract_dpid_num(node_str: str) -> int:
     return int(m.group(0)) if m else None
 
 
-def generate_flow_entries(path: list, graph: SDNTopologyGraph, dst_ip: str,
-                          priority: int = DEFAULT_PRIORITY) -> list:
-    """
-    Generate OpenFlow 1.3 flow modification rule payloads along the path.
-
-    Args:
-        path: List of node names (e.g. ['h1', 's1', 's3', 's2', 'h2'])
-        graph: SDNTopologyGraph instance
-        dst_ip: Destination IPv4 address
-
-    Returns:
-        list of dict: OpenFlow flow entry payloads ready for /stats/flowentry/add
-    """
+def _generate_unidirectional_rules(path: list, graph: SDNTopologyGraph, target_ip: str,
+                                   priority: int = DEFAULT_PRIORITY,
+                                   include_arp: bool = False) -> list:
+    """Generate flow modification payloads for one direction along a path."""
     flow_rules = []
-
-    # Filter out terminal host nodes, keep switches
     switches = [n for n in path if graph.nodes.get(n, {}).get("type") == "switch"]
 
     for i in range(len(switches)):
@@ -90,29 +79,93 @@ def generate_flow_entries(path: list, graph: SDNTopologyGraph, dst_ip: str,
             else:
                 egress_port = 1
 
-        payload = {
+        payload_ipv4 = {
             "dpid": dpid,
             "cookie": 1,
             "cookie_mask": 1,
             "table_id": 0,
-            "idle_timeout": 300,
-            "hard_timeout": 600,
+            "idle_timeout": 0,
+            "hard_timeout": 0,
             "priority": priority,
             "flags": 1,
             "match": {
-                "ipv4_dst": dst_ip,
-                "eth_type": 2048
+                "ipv4_dst": target_ip,
+                "eth_type": 2048,
             },
             "actions": [
                 {
                     "type": "OUTPUT",
-                    "port": int(egress_port)
+                    "port": int(egress_port),
                 }
-            ]
+            ],
         }
-        flow_rules.append(payload)
+        flow_rules.append(payload_ipv4)
+
+        if include_arp:
+            payload_arp = {
+                "dpid": dpid,
+                "cookie": 1,
+                "cookie_mask": 1,
+                "table_id": 0,
+                "idle_timeout": 0,
+                "hard_timeout": 0,
+                "priority": priority,
+                "flags": 1,
+                "match": {
+                    "arp_tpa": target_ip,
+                    "eth_type": 2054,
+                },
+                "actions": [
+                    {
+                        "type": "OUTPUT",
+                        "port": int(egress_port),
+                    }
+                ],
+            }
+            flow_rules.append(payload_arp)
 
     return flow_rules
+
+
+def generate_flow_entries(path: list, graph: SDNTopologyGraph, dst_ip: str,
+                          priority: int = DEFAULT_PRIORITY,
+                          bidirectional: bool = False,
+                          src_ip: str = None,
+                          include_arp: bool = False) -> list:
+    """
+    Generate OpenFlow 1.3 flow modification rule payloads along the path.
+
+    Args:
+        path: List of node names (e.g. ['h1', 's1', 's3', 's2', 'h2'])
+        graph: SDNTopologyGraph instance
+        dst_ip: Destination IPv4 address
+        priority: OpenFlow priority (default: DEFAULT_PRIORITY)
+        bidirectional: If True, also generate reverse flows for src_ip
+        src_ip: Source IPv4 address (inferred from path[0] if omitted)
+        include_arp: If True, also install ARP (eth_type 2054) matching rules
+
+    Returns:
+        list of dict: OpenFlow flow entry payloads ready for /stats/flowentry/add
+    """
+    if priority is None:
+        priority = DEFAULT_PRIORITY
+
+    rules = _generate_unidirectional_rules(path, graph, target_ip=dst_ip,
+                                           priority=priority, include_arp=include_arp)
+
+    if bidirectional:
+        resolved_src_ip = src_ip
+        if not resolved_src_ip and len(path) > 0:
+            first_node = path[0]
+            resolved_src_ip = graph.nodes.get(first_node, {}).get("ip")
+
+        if resolved_src_ip:
+            rev_path = list(reversed(path))
+            rev_rules = _generate_unidirectional_rules(rev_path, graph, target_ip=resolved_src_ip,
+                                                       priority=priority, include_arp=include_arp)
+            rules.extend(rev_rules)
+
+    return rules
 
 
 def build_primary_flow_rules(priority: int = 100) -> list:
@@ -298,6 +351,8 @@ def main():
     parser.add_argument("-t", "--topo", default=DEFAULT_TOPOLOGY_FILE, help=f"Topology JSON file (default: {DEFAULT_TOPOLOGY_FILE})")
     parser.add_argument("-c", "--controller", default=DEFAULT_CONTROLLER_URL, help=f"SDN controller URL (default: {DEFAULT_CONTROLLER_URL})")
     parser.add_argument("--priority", type=int, default=None, help=f"OpenFlow rule priority (default: 100 for primary, {DEFAULT_PRIORITY} for backup)")
+    parser.add_argument("--unidirectional", action="store_true", help="Only install forward flows toward destination")
+    parser.add_argument("--no-arp", action="store_true", help="Do not install matching ARP flows")
     parser.add_argument("--apply", action="store_true", help="Explicitly apply flow rules (default: dry-run mode)")
     parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose debug logging")
 
@@ -349,7 +404,18 @@ def main():
     graph = SDNTopologyGraph()
     graph.load_from_file(args.topo)
 
-    rules = generate_flow_entries(backup_path, graph, dst_ip, priority=args.priority)
+    src_node = report_data.get("source_node", "h1")
+    src_ip = graph.nodes.get(src_node, {}).get("ip")
+
+    rules = generate_flow_entries(
+        backup_path,
+        graph,
+        dst_ip,
+        priority=prio,
+        bidirectional=not args.unidirectional,
+        src_ip=src_ip,
+        include_arp=not args.no_arp,
+    )
     apply_reroute(rules, controller_url=args.controller, apply_changes=args.apply, verbose=args.verbose)
 
 
