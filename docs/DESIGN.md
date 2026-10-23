@@ -143,8 +143,9 @@ End-to-end packet loss only reveals that *some* node or link along the path is d
 - Any link present in the active path that is absent from controller active links is flagged as severed ($C = 1.0$).
 
 ### Combined Confidence Formulation
-When multiple evidence sources independently implicate link $k$, their confidences $c_1, c_2, \dots, c_m$ are combined via independent Bayesian aggregation:
+When multiple evidence sources independently implicate link $k$, their individual confidence scores $c_1, c_2, \dots, c_m$ are combined via weighted evidence scoring (independent multi-source evidence combination / noisy-OR model):
 $$C_{\text{combined}}(k) = 1.0 - \prod_{i=1}^m (1.0 - c_i)$$
+Where each source contributes an empirical detection weight $c_i \in (0, 1]$ (e.g., $1.0$ for topology link severance, $0.85$ for egress drop deltas, $0.75$ for TX/RX packet counter mismatch, $0.90$ for segment probe degradation).
 
 ---
 

@@ -119,7 +119,7 @@ All functionality is accessible via 10 subcommands:
 - Links absent from active topology are flagged as severed (confidence = 1.0)
 
 ### Combined Confidence
-When multiple evidence sources implicate a link, confidences are combined via Bayesian aggregation:  
+When multiple evidence sources implicate a link, confidences are combined via weighted evidence scoring (independent combination):  
 **C_combined = 1.0 - Π(1.0 - c_i)**
 
 ---
@@ -200,24 +200,24 @@ When multiple evidence sources implicate a link, confidences are combined via Ba
 
 ## 8. Tested Scenarios
 
-The suite validates three scenarios with real telemetry:
+The suite validates three scenarios with offline test fixtures, not measurements:
 
 ### Scenario A: Baseline Operation (Healthy Path)
-- Condition: 0.0% packet loss, latency < 2.0 ms
-- Metrics: 10 sent, 10 received, 0 lost; mean RTT 1.52 ms; p95 2.10 ms
+- Condition: 0.0% packet loss, baseline RTT expected 6-20 ms (primary path: h1-s1 1ms, s1-s2 2ms, s2-h2 1ms)
+- Status: Verified with offline test fixtures
 - Classification: `HEALTHY_PATH`
 - Active Path: `h1 → s1 → s2 → h2` (3 hops, `path_source: FLOW_TABLE`)
 
 ### Scenario B: Link Congestion & Queue Degradation
 - Condition: Injected 60 ms delay, 10% drop on primary link
-- Metrics: 15 sent, 14 received, 1 lost (6.67% loss); mean RTT 62.57 ms
+- Status: Verified with offline test fixtures
 - Classification: `DEGRADED_PATH`
 - Suspect Link: Core link `s1 ←→ s2` flagged
 - Recommended Backup: `h1 → s1 → s3 → s2 → h2` (+1 extra hop)
 
 ### Scenario C: Hard Link Failure & Automated Failover
 - Condition: Primary core link `s1 ←→ s2` severed (100% loss)
-- Metrics: 5 sent, 0 received (100.00% loss)
+- Status: Verified with offline test fixtures
 - Classification: `FAILED_PATH`
 - Evidence: Link `s1 ←→ s2` disappeared from controller active topology (100% confidence)
 - Recommended Backup: `h1 → s1 → s3 → s2 → h2` (Rank 1, VIABLE_BACKUP)

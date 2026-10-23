@@ -63,7 +63,7 @@ End-to-end packet loss only indicates path failure, not the failing link. We iso
 
 ### Q7: How are suspect link confidence scores mathematically combined?
 **Answer:**
-When multiple evidence sources independently implicate a link, their individual confidences $c_1, c_2, \dots, c_m$ are aggregated using independent Bayesian probability combination:
+When multiple evidence sources independently implicate a link, their individual confidences $c_1, c_2, \dots, c_m$ are aggregated using weighted evidence scoring (independent multi-source evidence combination):
 $$C_{\text{combined}} = 1.0 - \prod_{i=1}^m (1.0 - c_i)$$
 For example, if port stats indicates a drop with confidence $0.85$ and a segment probe indicates loss with confidence $0.90$:
 $$C = 1.0 - (1 - 0.85)(1 - 0.90) = 1.0 - (0.15 \times 0.10) = 0.985 \quad (98.5\%)$$
