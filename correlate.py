@@ -20,6 +20,7 @@ import sys
 import time
 
 from flow_inspector import FlowInspector
+from sdn_topology import dpid_to_switch_id
 from topology_graph import SDNTopologyGraph
 
 DEFAULT_CONFIG_PATH = "config.json"
@@ -447,10 +448,13 @@ def correlate(diag_file: str, topo_file: str, source_node: str,
                     if resp.status == 200:
                         raw_c_links = json.loads(resp.read().decode("utf-8"))
                         for cl in raw_c_links:
-                            s_dpid = int(cl.get("src", {}).get("dpid", 0))
-                            d_dpid = int(cl.get("dst", {}).get("dpid", 0))
-                            if s_dpid and d_dpid:
-                                active_topo_links.append({"source": f"s{s_dpid}", "destination": f"s{d_dpid}"})
+                            s_raw = cl.get("src", {}).get("dpid")
+                            d_raw = cl.get("dst", {}).get("dpid")
+                            if s_raw and d_raw:
+                                active_topo_links.append({
+                                    "source": dpid_to_switch_id(s_raw),
+                                    "destination": dpid_to_switch_id(d_raw)
+                                })
                         # Add known host-to-switch links from baseline topology
                         for h_id, h_node in graph.nodes.items():
                             if h_node.get("type") == "host":
