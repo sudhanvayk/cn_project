@@ -34,7 +34,7 @@ from diagnostic_client import load_config as load_client_config, run_diagnostics
 from path_analysis import print_path_table, run_path_analysis
 from probe_server import load_default_config as load_server_config, start_server
 from report_generator import build_report
-from reroute_helper import apply_reroute, generate_flow_entries
+from reroute_helper import apply_reroute, generate_flow_entries, resolve_destination_ip
 from sdn_topology import discover_topology, load_config as load_topo_config, print_topology_summary, watch_topology
 from topology_graph import SDNTopologyGraph, print_path_comparison
 
@@ -363,10 +363,9 @@ def cmd_reroute(args):
         sys.exit(1)
 
     backup_path = backup_info.get("path", [])
-    dst_ip = report_data.get("destination_ip", "10.0.0.2")
-
     graph = SDNTopologyGraph()
     graph.load_from_file(topo_file)
+    dst_ip = resolve_destination_ip(graph, backup_path, report_data)
 
     prio = args.priority if args.priority is not None else 200
     src_node = report_data.get("source_node", "h1")

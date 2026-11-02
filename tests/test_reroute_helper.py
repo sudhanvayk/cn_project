@@ -2,6 +2,9 @@
 Unit tests for SDN Backup Path Flow Rerouting Assistant.
 """
 
+import json
+import sys
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from reroute_helper import (
@@ -12,7 +15,9 @@ from reroute_helper import (
     generate_flow_entries,
     install_backup_flows,
     install_primary_flows,
+    main,
 )
+from sdnscope import cmd_reroute
 from topology_graph import SDNTopologyGraph
 
 
@@ -176,3 +181,63 @@ def test_install_backup_flows_dry_run():
     assert res["applied"] is False
     assert res["rules_count"] == 8
     assert all(r["status"] == "DRY_RUN" for r in res["results"])
+
+
+def test_reroute_uses_topology_ip_for_loopback_probe_target(tmp_path, monkeypatch):
+    topology_file = tmp_path / "topology.json"
+    topology_file.write_text(json.dumps({
+        "nodes": [
+            {"id": "h1", "type": "host", "ip": "10.0.0.1"},
+            {"id": "h2", "type": "host", "ip": "10.0.0.2"},
+            {"id": "s1", "type": "switch", "dpid": "0000000000000001"},
+            {"id": "s2", "type": "switch", "dpid": "0000000000000002"},
+            {"id": "s3", "type": "switch", "dpid": "0000000000000003"},
+        ],
+        "links": [
+            {"source": "h1", "destination": "s1", "src_port": 1, "dst_port": 1},
+            {"source": "s1", "destination": "s3", "src_port": 3, "dst_port": 1},
+            {"source": "s3", "destination": "s2", "src_port": 2, "dst_port": 3},
+            {"source": "s2", "destination": "h2", "src_port": 1, "dst_port": 1},
+        ],
+    }))
+    report_file = tmp_path / "report.json"
+    report_file.write_text(json.dumps({
+        "source_node": "h1",
+        "destination_node": "h2",
+        "destination_ip": "127.0.0.1",
+        "recommended_backup_path": {"path": ["h1", "s1", "s3", "s2", "h2"]},
+    }))
+    captured_rules = []
+
+    def capture_rules(rules, **kwargs):
+        captured_rules.extend(rules)
+
+    monkeypatch.setattr(sys, "argv", ["reroute_helper.py", "-r", str(report_file), "-t", str(topology_file)])
+    monkeypatch.setattr("reroute_helper.apply_reroute", capture_rules)
+
+    main()
+
+    forward_ipv4_targets = {
+        rule["match"]["ipv4_dst"]
+        for rule in captured_rules
+        if "ipv4_dst" in rule["match"] and rule["match"]["ipv4_dst"] != "10.0.0.1"
+    }
+    assert forward_ipv4_targets == {"10.0.0.2"}
+
+    captured_rules.clear()
+    monkeypatch.setattr("sdnscope.apply_reroute", capture_rules)
+    cmd_reroute(SimpleNamespace(
+        report=str(report_file),
+        topo=str(topology_file),
+        priority=None,
+        controller="http://127.0.0.1:8080",
+        verbose=False,
+        apply=False,
+    ))
+
+    forward_ipv4_targets = {
+        rule["match"]["ipv4_dst"]
+        for rule in captured_rules
+        if "ipv4_dst" in rule["match"] and rule["match"]["ipv4_dst"] != "10.0.0.1"
+    }
+    assert forward_ipv4_targets == {"10.0.0.2"}

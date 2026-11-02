@@ -110,3 +110,25 @@ def test_integration_artificial_delay(run_udp_server):
     assert summary["received"] == 5
     # Mean RTT must be at least 24ms due to injected 25ms server delay
     assert summary["mean_rtt_ms"] >= 24.0
+
+
+def test_integration_complete_packet_loss(run_udp_server):
+    """Verify complete loss is reported without an RTT statistic."""
+    port = run_udp_server(drop_rate=1.0, delay_ms=0.0)
+
+    result = run_diagnostics_single(
+        target_ip="127.0.0.1",
+        port=port,
+        count=3,
+        timeout=0.05,
+        payload_size=64,
+        interval=0.0,
+        burst=True
+    )
+
+    summary = result["summary"]
+    assert summary["sent"] == 3
+    assert summary["received"] == 0
+    assert summary["lost"] == 3
+    assert summary["packet_loss_percent"] == 100.0
+    assert summary["mean_rtt_ms"] is None

@@ -43,6 +43,15 @@ def extract_dpid_num(node_str: str) -> int:
     return int(m.group(0)) if m else None
 
 
+def resolve_destination_ip(graph: SDNTopologyGraph, path: list, report_data: dict) -> str:
+    """Map loopback probe destinations to the routed topology endpoint."""
+    destination_ip = report_data.get("destination_ip", "10.0.0.2")
+    if destination_ip in {"127.0.0.1", "localhost", "::1"} and path:
+        destination_node = report_data.get("destination_node") or path[-1]
+        destination_ip = graph.nodes.get(destination_node, {}).get("ip") or destination_ip
+    return destination_ip
+
+
 def _generate_unidirectional_rules(path: list, graph: SDNTopologyGraph, target_ip: str,
                                    priority: int = DEFAULT_PRIORITY,
                                    include_arp: bool = False) -> list:
@@ -399,10 +408,9 @@ def main():
         sys.exit(1)
 
     backup_path = backup_info.get("path", [])
-    dst_ip = report_data.get("destination_ip", "10.0.0.2")
-
     graph = SDNTopologyGraph()
     graph.load_from_file(args.topo)
+    dst_ip = resolve_destination_ip(graph, backup_path, report_data)
 
     src_node = report_data.get("source_node", "h1")
     src_ip = graph.nodes.get(src_node, {}).get("ip")
