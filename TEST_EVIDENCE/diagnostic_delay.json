@@ -1,0 +1,90 @@
+{
+  "timestamp": "2026-11-02T11:55:15Z",
+  "target_ip": "127.0.0.1",
+  "destination_port": 19992,
+  "probe_count": 5,
+  "timeout_seconds": 0.5,
+  "payload_size_bytes": 64,
+  "interval_seconds": 0.01,
+  "burst_mode": false,
+  "summary": {
+    "sent": 5,
+    "received": 5,
+    "lost": 0,
+    "packet_loss_percent": 0.0,
+    "duplicates": 0,
+    "out_of_order": 0,
+    "min_rtt_ms": 30.563,
+    "max_rtt_ms": 31.154,
+    "mean_rtt_ms": 30.696,
+    "median_rtt_ms": 30.591,
+    "stddev_rtt_ms": 0.257,
+    "rfc3550_jitter_ms": 0.064,
+    "p95_rtt_ms": 31.044,
+    "mean_forward_delay_ms": 0.295,
+    "mean_reverse_delay_ms": 0.166,
+    "clock_sync_note": "One-way delays are estimates; precision depends on NTP/PTP synchronization between client and server."
+  },
+  "probes": [
+    {
+      "probe_id": "p-948c899e",
+      "seq": 1,
+      "send_time": 1793620515.57162,
+      "recv_time": 1793620515.6021829,
+      "status": "SUCCESS",
+      "rtt_ms": 30.563,
+      "is_duplicate": false,
+      "is_out_of_order": false,
+      "est_forward_delay_ms": 0.292,
+      "est_reverse_delay_ms": 0.161
+    },
+    {
+      "probe_id": "p-6b162053",
+      "seq": 2,
+      "send_time": 1793620515.6123655,
+      "recv_time": 1793620515.6435192,
+      "status": "SUCCESS",
+      "rtt_ms": 31.154,
+      "is_duplicate": false,
+      "is_out_of_order": false,
+      "est_forward_delay_ms": 0.319,
+      "est_reverse_delay_ms": 0.154
+    },
+    {
+      "probe_id": "p-e5689906",
+      "seq": 3,
+      "send_time": 1793620515.6537664,
+      "recv_time": 1793620515.6843727,
+      "status": "SUCCESS",
+      "rtt_ms": 30.606,
+      "is_duplicate": false,
+      "is_out_of_order": false,
+      "est_forward_delay_ms": 0.278,
+      "est_reverse_delay_ms": 0.215
+    },
+    {
+      "probe_id": "p-b7470964",
+      "seq": 4,
+      "send_time": 1793620515.694586,
+      "recv_time": 1793620515.7251523,
+      "status": "SUCCESS",
+      "rtt_ms": 30.566,
+      "is_duplicate": false,
+      "is_out_of_order": false,
+      "est_forward_delay_ms": 0.284,
+      "est_reverse_delay_ms": 0.147
+    },
+    {
+      "probe_id": "p-d37eaf4b",
+      "seq": 5,
+      "send_time": 1793620515.735331,
+      "recv_time": 1793620515.765922,
+      "status": "SUCCESS",
+      "rtt_ms": 30.591,
+      "is_duplicate": false,
+      "is_out_of_order": false,
+      "est_forward_delay_ms": 0.302,
+      "est_reverse_delay_ms": 0.155
+    }
+  ]
+}

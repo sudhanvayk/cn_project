@@ -1,0 +1,117 @@
+{
+  "controller_type": "ryu",
+  "controller_url": "http://127.0.0.1:18080",
+  "discovered_at": "2026-11-02T11:55:45Z",
+  "nodes": [
+    {
+      "id": "s1",
+      "type": "switch",
+      "dpid": "0000000000000001",
+      "ports": [
+        {
+          "port_no": 1,
+          "name": "s1-eth1"
+        },
+        {
+          "port_no": 2,
+          "name": "s1-eth2"
+        },
+        {
+          "port_no": 3,
+          "name": "s1-eth3"
+        }
+      ]
+    },
+    {
+      "id": "s2",
+      "type": "switch",
+      "dpid": "0000000000000002",
+      "ports": [
+        {
+          "port_no": 1,
+          "name": "s2-eth1"
+        },
+        {
+          "port_no": 2,
+          "name": "s2-eth2"
+        },
+        {
+          "port_no": 3,
+          "name": "s2-eth3"
+        }
+      ]
+    },
+    {
+      "id": "s3",
+      "type": "switch",
+      "dpid": "0000000000000003",
+      "ports": [
+        {
+          "port_no": 1,
+          "name": "s3-eth1"
+        },
+        {
+          "port_no": 2,
+          "name": "s3-eth2"
+        }
+      ]
+    },
+    {
+      "id": "h1",
+      "type": "host",
+      "ip": "10.0.0.1",
+      "mac": "00:00:00:00:00:01",
+      "connected_to": "s1",
+      "switch_port": 1,
+      "host_source": "controller"
+    },
+    {
+      "id": "h2",
+      "type": "host",
+      "ip": "10.0.0.2",
+      "mac": "00:00:00:00:00:02",
+      "connected_to": "s2",
+      "switch_port": 1,
+      "host_source": "controller"
+    }
+  ],
+  "links": [
+    {
+      "source": "s1",
+      "destination": "s2",
+      "src_port": 2,
+      "dst_port": 2,
+      "type": "switch-to-switch"
+    },
+    {
+      "source": "s1",
+      "destination": "s3",
+      "src_port": 3,
+      "dst_port": 1,
+      "type": "switch-to-switch"
+    },
+    {
+      "source": "s3",
+      "destination": "s2",
+      "src_port": 2,
+      "dst_port": 3,
+      "type": "switch-to-switch"
+    },
+    {
+      "source": "h1",
+      "destination": "s1",
+      "src_port": null,
+      "dst_port": 1,
+      "type": "host-to-switch",
+      "host_source": "controller"
+    },
+    {
+      "source": "h2",
+      "destination": "s2",
+      "src_port": null,
+      "dst_port": 1,
+      "type": "host-to-switch",
+      "host_source": "controller"
+    }
+  ]
+}

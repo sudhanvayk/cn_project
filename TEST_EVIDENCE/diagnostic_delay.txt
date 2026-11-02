@@ -1,0 +1,42 @@
+========================================================================
+       SDN UDP Network Diagnostic Measurement Client
+========================================================================
+ Target Endpoint:   127.0.0.1:19992
+ Mode:              Standard (0.01s interval)
+ Probe Count:       5
+ Timeout per probe: 0.50 s
+ Payload Size:      64 bytes
+ Protocol Version:  1.0 (Magic: SDN_PROBE)
+------------------------------------------------------------------------
+Seq    Status     RTT (ms)   RFC Jitter   1-Way (ms)   Order
+------------------------------------------------------------------------
+1      SUCCESS    30.56      0.00         0.29         OK
+2      SUCCESS    31.15      0.04         0.32         OK
+3      SUCCESS    30.61      0.07         0.28         OK
+4      SUCCESS    30.57      0.07         0.28         OK
+5      SUCCESS    30.59      0.06         0.30         OK
+
+========================================================================
+                     DIAGNOSTIC SUMMARY REPORT
+========================================================================
+ Target Endpoint:             127.0.0.1:19992
+ Probing Mode:                Standard
+ Probes Transmitted:          5
+ Probes Received:             5
+ Probes Lost:                 0
+ Packet Loss Rate:            0.00%
+ Duplicates Detected:         0
+ Out-of-Order Packets:        0
+------------------------------------------------------------------------
+ Minimum RTT:                 30.56 ms
+ Maximum RTT:                 31.15 ms
+ Mean RTT:                    30.70 ms
+ Median RTT:                  30.59 ms
+ 95th Percentile RTT (p95):   31.04 ms
+ Standard Deviation Jitter:   0.26 ms
+ RFC 3550 Inter-Arrival Jitter:0.06 ms
+ Est. Mean Forward Delay:     0.29 ms (clock-dependent)
+ Est. Mean Reverse Delay:     0.17 ms (clock-dependent)
+========================================================================
+
+[INFO] Diagnostic results successfully saved to: TEST_EVIDENCE/diagnostic_delay.json

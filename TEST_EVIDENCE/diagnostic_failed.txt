@@ -1,0 +1,32 @@
+========================================================================
+       SDN UDP Network Diagnostic Measurement Client
+========================================================================
+ Target Endpoint:   127.0.0.1:19991
+ Mode:              Standard (0.10s interval)
+ Probe Count:       3
+ Timeout per probe: 0.05 s
+ Payload Size:      64 bytes
+ Protocol Version:  1.0 (Magic: SDN_PROBE)
+------------------------------------------------------------------------
+Seq    Status     RTT (ms)   RFC Jitter   1-Way (ms)   Order
+------------------------------------------------------------------------
+1      TIMEOUT    *          *            *            LOST
+2      TIMEOUT    *          *            *            LOST
+3      TIMEOUT    *          *            *            LOST
+
+========================================================================
+                     DIAGNOSTIC SUMMARY REPORT
+========================================================================
+ Target Endpoint:             127.0.0.1:19991
+ Probing Mode:                Standard
+ Probes Transmitted:          3
+ Probes Received:             0
+ Probes Lost:                 3
+ Packet Loss Rate:            100.00%
+ Duplicates Detected:         0
+ Out-of-Order Packets:        0
+------------------------------------------------------------------------
+ All probes timed out. No latency metrics available.
+========================================================================
+
+[INFO] Diagnostic results successfully saved to: TEST_EVIDENCE/diagnostic_failed.json

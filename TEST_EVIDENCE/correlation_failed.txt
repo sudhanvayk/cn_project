@@ -1,0 +1,30 @@
+
+==========================================================================
+ [✖ FAILED]     SDN NETWORK PATH DIAGNOSTIC & CORRELATION REPORT
+==========================================================================
+ PATH STATUS:             FAILED_PATH
+ FAILED-PATH REASON:      Severe packet loss (100.00%) meets or exceeds failure threshold (50.0%).
+--------------------------------------------------------------------------
+ Source Node:             h1
+ Destination Node:        h2 (IP: 127.0.0.1)
+ Packet Loss:             100.00%
+ Mean RTT:                N/A
+ Active Path:             h1 -> s1 -> s2 -> h2 (3 hops)
+ Path Source:             FLOW_TABLE
+--------------------------------------------------------------------------
+ SUSPECTED FAILED / DEGRADED LINKS (Localization Evidence):
+ Rank   Suspected Link           Confidence     Evidence
+ ------------------------------------------------------------------------
+ 1      s1 <---> s2              100.0%         Link s1 <---> s2 disappeared from active SDN controller topology
+--------------------------------------------------------------------------
+ RANKED BACKUP PATHS (Pruned of Suspected Links):
+ Rank   Status                    Hops     Extra    Route
+ ------------------------------------------------------------------------
+ 1      VIABLE_BACKUP             4        +1       h1 -> s1 -> s3 -> s2 -> h2
+--------------------------------------------------------------------------
+ [ACTION RECOMMENDED] Failover to Viable Backup Route:
+ -> Best Backup:  h1 -> s1 -> s3 -> s2 -> h2 (4 hops, +1 extra)
+ -> Next Step:    Deploy backup flow rules via reroute_helper.py or SDN controller.
+==========================================================================
+
+[INFO] Final correlation report saved to: TEST_EVIDENCE/correlation_failed.json

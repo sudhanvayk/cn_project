@@ -1,0 +1,31 @@
+[INFO] 17:19:31 - Connecting to Ryu REST API at http://127.0.0.1:18081...
+
+====================================================================
+                 SDN TOPOLOGY DISCOVERY REPORT
+====================================================================
+ Controller Type:   RYU
+ Controller URL:    http://127.0.0.1:18081
+ Discovered At:     2026-11-02T11:49:31Z
+ Total Nodes:       5
+ Total Links:       4
+--------------------------------------------------------------------
+
+[Discovered Nodes]:
+Node ID      Type         IP / DPID                 Connected To
+--------------------------------------------------------------------
+s1           switch       0000000000000001          -
+s2           switch       0000000000000002          -
+s3           switch       0000000000000003          -
+h1           host         10.0.0.1                  s1
+h2           host         10.0.0.2                  s2
+
+[Discovered Links]:
+Source          <--->    Destination     Link Type
+--------------------------------------------------------------------
+s1              <--->    s3              switch-to-switch
+s3              <--->    s2              switch-to-switch
+h1              <--->    s1              host-to-switch
+h2              <--->    s2              host-to-switch
+====================================================================
+
+[INFO] Topology written to: TEST_EVIDENCE/topology_failed.json

@@ -1,0 +1,57 @@
+========================================================================
+       SDN UDP Network Diagnostic Measurement Client
+========================================================================
+ Target Endpoint:   127.0.0.1:19993
+ Mode:              Standard (0.01s interval)
+ Probe Count:       20
+ Timeout per probe: 0.20 s
+ Payload Size:      64 bytes
+ Protocol Version:  1.0 (Magic: SDN_PROBE)
+------------------------------------------------------------------------
+Seq    Status     RTT (ms)   RFC Jitter   1-Way (ms)   Order
+------------------------------------------------------------------------
+1      TIMEOUT    *          *            *            LOST
+2      SUCCESS    0.41       0.00         0.29         OK
+3      SUCCESS    0.42       0.00         0.31         OK
+4      SUCCESS    0.32       0.01         0.23         OK
+5      TIMEOUT    *          *            *            LOST
+6      TIMEOUT    *          *            *            LOST
+7      SUCCESS    0.45       0.01         0.34         OK
+8      TIMEOUT    *          *            *            LOST
+9      SUCCESS    0.39       0.02         0.30         OK
+10     SUCCESS    0.34       0.02         0.25         OK
+11     TIMEOUT    *          *            *            LOST
+12     TIMEOUT    *          *            *            LOST
+13     SUCCESS    0.36       0.02         0.27         OK
+14     TIMEOUT    *          *            *            LOST
+15     SUCCESS    0.39       0.02         0.29         OK
+16     TIMEOUT    *          *            *            LOST
+17     SUCCESS    0.37       0.02         0.27         OK
+18     SUCCESS    0.35       0.02         0.24         OK
+19     SUCCESS    0.28       0.02         0.19         OK
+20     TIMEOUT    *          *            *            LOST
+
+========================================================================
+                     DIAGNOSTIC SUMMARY REPORT
+========================================================================
+ Target Endpoint:             127.0.0.1:19993
+ Probing Mode:                Standard
+ Probes Transmitted:          20
+ Probes Received:             11
+ Probes Lost:                 9
+ Packet Loss Rate:            45.00%
+ Duplicates Detected:         0
+ Out-of-Order Packets:        0
+------------------------------------------------------------------------
+ Minimum RTT:                 0.28 ms
+ Maximum RTT:                 0.45 ms
+ Mean RTT:                    0.37 ms
+ Median RTT:                  0.37 ms
+ 95th Percentile RTT (p95):   0.43 ms
+ Standard Deviation Jitter:   0.05 ms
+ RFC 3550 Inter-Arrival Jitter:0.02 ms
+ Est. Mean Forward Delay:     0.27 ms (clock-dependent)
+ Est. Mean Reverse Delay:     0.07 ms (clock-dependent)
+========================================================================
+
+[INFO] Diagnostic results successfully saved to: TEST_EVIDENCE/diagnostic_partial_loss.json

@@ -1,0 +1,2 @@
+[ERROR] Invalid IPv4 address: 'not-an-ip'
+Expected nonzero exit: 1

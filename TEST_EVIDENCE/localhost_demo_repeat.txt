@@ -1,0 +1,198 @@
+./scripts/demo_localhost.sh
+======================================================================
+          SDNSCOPE FULL LOCALHOST DEMONSTRATION (NO MININET)
+======================================================================
+
+[STEP 1] Starting Mock Ryu SDN Controller on port 18080...
+[STEP 2] Starting UDP Probe Server on port 19990...
+
+[STEP 3] Discovering SDN Controller Topology via Northbound REST...
+[INFO] 17:25:45 - Connecting to Ryu REST API at http://127.0.0.1:18080...
+
+====================================================================
+                 SDN TOPOLOGY DISCOVERY REPORT
+====================================================================
+ Controller Type:   RYU
+ Controller URL:    http://127.0.0.1:18080
+ Discovered At:     2026-11-02T11:55:45Z
+ Total Nodes:       5
+ Total Links:       5
+--------------------------------------------------------------------
+
+[Discovered Nodes]:
+Node ID      Type         IP / DPID                 Connected To
+--------------------------------------------------------------------
+s1           switch       0000000000000001          -
+s2           switch       0000000000000002          -
+s3           switch       0000000000000003          -
+h1           host         10.0.0.1                  s1
+h2           host         10.0.0.2                  s2
+
+[Discovered Links]:
+Source          <--->    Destination     Link Type
+--------------------------------------------------------------------
+s1              <--->    s2              switch-to-switch
+s1              <--->    s3              switch-to-switch
+s3              <--->    s2              switch-to-switch
+h1              <--->    s1              host-to-switch
+h2              <--->    s2              host-to-switch
+====================================================================
+
+[INFO] Topology written to: results/demo_localhost/topology.json
+
+[STEP 4] Finding and Ranking All Simple Loop-Free Paths between h1 and h2...
+======================================================================
+               SDN PATH DISCOVERY AND COMPARISON REPORT
+======================================================================
+ Source:            h1
+ Destination:       h2
+ Total Paths Found: 2
+----------------------------------------------------------------------
+Rank   Role                   Hops     Extra    Path Route
+----------------------------------------------------------------------
+1      SELECTED_SHORTEST      3        0        h1 -> s1 -> s2 -> h2
+2      ALTERNATIVE            4        +1       h1 -> s1 -> s3 -> s2 -> h2
+======================================================================
+
+[INFO] Path comparison written to: results/demo_localhost/paths.json
+
+[STEP 5] Transmitting Active UDP Probes (Measuring RTT, Loss, RFC 3550 Jitter)...
+========================================================================
+       SDN UDP Network Diagnostic Measurement Client
+========================================================================
+ Target Endpoint:   127.0.0.1:19990
+ Mode:              Standard (0.05s interval)
+ Probe Count:       10
+ Timeout per probe: 2.00 s
+ Payload Size:      64 bytes
+ Protocol Version:  1.0 (Magic: SDN_PROBE)
+------------------------------------------------------------------------
+Seq    Status     RTT (ms)   RFC Jitter   1-Way (ms)   Order
+------------------------------------------------------------------------
+1      SUCCESS    0.39       0.00         0.31         OK
+2      SUCCESS    0.38       0.00         0.29         OK
+3      SUCCESS    0.35       0.00         0.27         OK
+4      SUCCESS    0.36       0.00         0.28         OK
+5      SUCCESS    0.38       0.00         0.29         OK
+6      SUCCESS    0.35       0.01         0.25         OK
+7      SUCCESS    0.40       0.01         0.31         OK
+8      SUCCESS    0.41       0.01         0.32         OK
+9      SUCCESS    0.43       0.01         0.34         OK
+10     SUCCESS    0.48       0.01         0.36         OK
+
+========================================================================
+                     DIAGNOSTIC SUMMARY REPORT
+========================================================================
+ Target Endpoint:             127.0.0.1:19990
+ Probing Mode:                Standard
+ Probes Transmitted:          10
+ Probes Received:             10
+ Probes Lost:                 0
+ Packet Loss Rate:            0.00%
+ Duplicates Detected:         0
+ Out-of-Order Packets:        0
+------------------------------------------------------------------------
+ Minimum RTT:                 0.35 ms
+ Maximum RTT:                 0.48 ms
+ Mean RTT:                    0.39 ms
+ Median RTT:                  0.39 ms
+ 95th Percentile RTT (p95):   0.46 ms
+ Standard Deviation Jitter:   0.04 ms
+ RFC 3550 Inter-Arrival Jitter:0.01 ms
+ Est. Mean Forward Delay:     0.30 ms (clock-dependent)
+ Est. Mean Reverse Delay:     0.07 ms (clock-dependent)
+========================================================================
+
+[INFO] Diagnostic results successfully saved to: results/demo_localhost/diagnostic_result.json
+
+[STEP 6] Inspecting IP Hop Path (with SDN L2 Transparency Notice)...
+[INFO] Native raw socket traceroute unavailable (non-root: [Errno 1] Operation not permitted); falling back to system utility.
+========================================================================
+              NETWORK PATH ANALYSIS REPORT (IP Layer)
+========================================================================
+ Target Host:       127.0.0.1
+ Tracing Method:    system_tracepath
+ Total Hops Found:  1
+------------------------------------------------------------------------
+Hop   IP Address             Loss %     Avg RTT      Status
+------------------------------------------------------------------------
+1     127.0.0.1              0.0%       0.05 ms      REACHABLE
+------------------------------------------------------------------------
+[SDN PATH TRANSPARENCY NOTICE]:
+In standard OpenFlow/Mininet networks, switches forward packets at Layer 2 without decrementing the IPv4 TTL field (unless explicit dec_ttl actions exist). Consequently, intermediate OpenFlow switches are transparent to standard traceroute; the destination host answers directly at Hop 1 via ICMP Port Unreachable. Authoritative multi-switch forwarding paths are determined by querying the SDN controller flow tables (see flow_inspector.py).
+========================================================================
+
+[INFO] Path trace saved to: results/demo_localhost/trace.json
+
+[STEP 7] Correlating Socket Telemetry with SDN Topology & Diagnosing Path...
+
+==========================================================================
+ [✔ HEALTHY]    SDN NETWORK PATH DIAGNOSTIC & CORRELATION REPORT
+==========================================================================
+ PATH STATUS:             HEALTHY_PATH
+ FAILED-PATH REASON:      None (Path is healthy and operating within nominal thresholds)
+--------------------------------------------------------------------------
+ Source Node:             h1
+ Destination Node:        h2 (IP: 127.0.0.1)
+ Packet Loss:             0.00%
+ Mean RTT:                0.39 ms
+ Active Path:             h1 -> s1 -> s2 -> h2 (3 hops)
+ Path Source:             FLOW_TABLE
+--------------------------------------------------------------------------
+ RANKED BACKUP PATHS (Pruned of Suspected Links):
+ Rank   Status                    Hops     Extra    Route
+ ------------------------------------------------------------------------
+ 1      VIABLE_BACKUP             4        +1       h1 -> s1 -> s3 -> s2 -> h2
+--------------------------------------------------------------------------
+ [OK] Network path operating within nominal parameters. No rerouting needed.
+==========================================================================
+
+[INFO] Final correlation report saved to: results/demo_localhost/correlation_report.json
+
+[STEP 8] Demonstrating Automated Backup Route Deployment via OpenFlow Modifications...
+========================================================================
+           SDN AUTOMATED BACKUP PATH REROUTING ASSISTANT
+========================================================================
+ Target Controller: http://127.0.0.1:18080/stats/flowentry/add
+ Execution Mode:    *** LIVE APPLY ***
+ Total Rules:       12
+------------------------------------------------------------------------
+Rule #1: Switch DPID 1 | Match: {'ipv4_dst': '10.0.0.2', 'eth_type': 2048} | Action: OUTPUT port 3
+[INFO] Successfully installed rule #1 on DPID 1 (HTTP 200)
+Rule #2: Switch DPID 1 | Match: {'arp_tpa': '10.0.0.2', 'eth_type': 2054} | Action: OUTPUT port 3
+[INFO] Successfully installed rule #2 on DPID 1 (HTTP 200)
+Rule #3: Switch DPID 3 | Match: {'ipv4_dst': '10.0.0.2', 'eth_type': 2048} | Action: OUTPUT port 2
+[INFO] Successfully installed rule #3 on DPID 3 (HTTP 200)
+Rule #4: Switch DPID 3 | Match: {'arp_tpa': '10.0.0.2', 'eth_type': 2054} | Action: OUTPUT port 2
+[INFO] Successfully installed rule #4 on DPID 3 (HTTP 200)
+Rule #5: Switch DPID 2 | Match: {'ipv4_dst': '10.0.0.2', 'eth_type': 2048} | Action: OUTPUT port 1
+[INFO] Successfully installed rule #5 on DPID 2 (HTTP 200)
+Rule #6: Switch DPID 2 | Match: {'arp_tpa': '10.0.0.2', 'eth_type': 2054} | Action: OUTPUT port 1
+[INFO] Successfully installed rule #6 on DPID 2 (HTTP 200)
+Rule #7: Switch DPID 2 | Match: {'ipv4_dst': '10.0.0.1', 'eth_type': 2048} | Action: OUTPUT port 3
+[INFO] Successfully installed rule #7 on DPID 2 (HTTP 200)
+Rule #8: Switch DPID 2 | Match: {'arp_tpa': '10.0.0.1', 'eth_type': 2054} | Action: OUTPUT port 3
+[INFO] Successfully installed rule #8 on DPID 2 (HTTP 200)
+Rule #9: Switch DPID 3 | Match: {'ipv4_dst': '10.0.0.1', 'eth_type': 2048} | Action: OUTPUT port 1
+[INFO] Successfully installed rule #9 on DPID 3 (HTTP 200)
+Rule #10: Switch DPID 3 | Match: {'arp_tpa': '10.0.0.1', 'eth_type': 2054} | Action: OUTPUT port 1
+[INFO] Successfully installed rule #10 on DPID 3 (HTTP 200)
+Rule #11: Switch DPID 1 | Match: {'ipv4_dst': '10.0.0.1', 'eth_type': 2048} | Action: OUTPUT port 1
+[INFO] Successfully installed rule #11 on DPID 1 (HTTP 200)
+Rule #12: Switch DPID 1 | Match: {'arp_tpa': '10.0.0.1', 'eth_type': 2054} | Action: OUTPUT port 1
+[INFO] Successfully installed rule #12 on DPID 1 (HTTP 200)
+------------------------------------------------------------------------
+[SUCCESS] All rerouting flow modifications dispatched to controller.
+========================================================================
+
+[STEP 9] Generating Markdown and HTML Executive Reports...
+[SUCCESS] Markdown report generated: results/demo_localhost/report.md
+[SUCCESS] HTML report generated:     results/demo_localhost/report.html
+[SUCCESS] Latency chart saved:       results/demo_localhost/rtt_timeseries.png
+
+======================================================================
+ [SUCCESS] Full local demonstration completed successfully!
+ Artifacts saved in: results/demo_localhost
+======================================================================
+
+[CLEANUP] Stopping background services...
