@@ -5,7 +5,7 @@ repository root.
 
 ## 1. Prerequisites
 
-- Python 3.10–3.12
+- Python 3.10–3.14 (all five versions verified in CI)
 - On Ubuntu/Debian: `sudo apt install python3-venv`
 - No Mininet or root privileges required for the localhost demonstration
 

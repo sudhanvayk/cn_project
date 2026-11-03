@@ -7,7 +7,7 @@
 **Execution Environment:** Ubuntu 24.04 VM (`sudh-VB`, Linux kernel 7.0.0-38-generic)  
 **Controller Runtime:** Ryu 4.34 in Python 3.9 venv (`~/ryu-env/bin/ryu-manager`)  
 **Data Plane Testbed:** Mininet 2.3.0 + Open vSwitch 3.3.9 Diamond Topology (s1, s2, s3, h1, h2)  
-**Project Tooling:** Python 3.12 (`.venv`)  
+**Project Tooling:** Python 3.10–3.14 (`.venv`)  
 
 ---
 
@@ -109,7 +109,7 @@ All CLI subcommands were exercised live against the running Mininet and Ryu test
 5. **Symmetric Bidirectional Rerouting:** Upgraded `reroute_helper.py` to generate complete forward (IPv4/ARP toward `10.0.0.2`) and reverse (IPv4/ARP toward `10.0.0.1`) flow rules at OpenFlow priority 200, resolving echo reply drops along backup routes.
 6. **Namespace Separation:** Routed data-plane probes (`probe`, `trace`) through Mininet namespaces (`h1`), while routing control-plane REST queries through the host environment (`127.0.0.1:8080`).
 7. **Hybrid Host Discovery:** Integrated `--hosts-file` merge into `sdn_topology.py` to overcome Ryu's empty `/v1.0/topology/hosts` endpoint when operating under static flows without learning switches.
-8. **Isolated Controller Runtime:** Pinned Ryu 4.34 in a separate Python 3.9 virtual environment (`~/ryu-env`) using `uv`, leaving the project `.venv` on Python 3.12.
+8. **Isolated Controller Runtime:** Pinned Ryu 4.34 in a separate Python 3.9 virtual environment (`~/ryu-env`) using `uv`, leaving the project `.venv` on its own supported Python.
 9. **Traceroute Hop 1 Reachability & Programmatic Flow Installation:** Verified ICMP port unreachable returns from `h2` at Hop 1 in native raw socket, added system traceroute fallback, and set `apply_changes=True` in programmatic flow installer functions.
 10. **Telemetry Attribution Transparency:** Clarified that degraded link localization under kernel qdisc loss is a path-membership heuristic inference ($C=0.60$), not a direct physical measurement.
 
