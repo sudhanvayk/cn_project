@@ -4,6 +4,25 @@
 **Problem Statement:** Develop a socket-based network diagnostic application that measures delay, packet loss, and path characteristics and correlates the results with the SDN network topology.  
 **Protocol:** UDP  
 
+## Evaluator Quick Start
+
+On Ubuntu/Debian, install the venv module first:
+
+```bash
+sudo apt install python3-venv
+```
+
+```bash
+git clone https://github.com/sudhanvayk/cn_project.git
+cd cn_project
+make install   # builds .venv, installs runtime + dev dependencies
+make lint      # → All checks passed!
+make test      # → 71 passed, 64% coverage
+make demo      # → [SUCCESS] Full local demonstration completed successfully!
+```
+
+`make demo` runs the full 9-step localhost demonstration (no Mininet required, ~30s) and writes artifacts to `results/demo_localhost/`: `topology.json`, `paths.json`, `diagnostic_result.json`, `trace.json`, `correlation_report.json`, `report.md`, `report.html`, `rtt_timeseries.png`.
+
 ---
 
 ## 1. Executive Overview
