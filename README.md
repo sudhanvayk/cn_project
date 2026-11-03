@@ -4,6 +4,25 @@
 **Problem Statement:** Develop a socket-based network diagnostic application that measures delay, packet loss, and path characteristics and correlates the results with the SDN network topology.  
 **Protocol:** UDP  
 
+## Evaluator Quick Start
+
+On Ubuntu/Debian, install the venv module first:
+
+```bash
+sudo apt install python3-venv
+```
+
+```bash
+git clone https://github.com/sudhanvayk/cn_project.git
+cd cn_project
+make install   # builds .venv, installs runtime + dev dependencies
+make lint      # → All checks passed!
+make test      # → 71 passed, 64% coverage
+make demo      # → [SUCCESS] Full local demonstration completed successfully!
+```
+
+`make demo` runs the full 9-step localhost demonstration (no Mininet required, ~30s) and writes artifacts to `results/demo_localhost/`: `topology.json`, `paths.json`, `diagnostic_result.json`, `trace.json`, `correlation_report.json`, `report.md`, `report.html`, `rtt_timeseries.png`.
+
 ---
 
 ## 1. Executive Overview
@@ -20,13 +39,13 @@ The table below maps each of the **7 core problem expectations** directly to imp
 
 | # | Topic 13 Expectation | Implementing Modules | Key Classes & Functions | Description |
 |---|---|---|---|---|
-| **1** | **UDP diagnostic probes** | [`probe_server.py`](file:///home/sudh/Documents/cn_project/probe_server.py)<br>[`diagnostic_client.py`](file:///home/sudh/Documents/cn_project/diagnostic_client.py) | `ProbeUDPHandler.handle`<br>`run_diagnostics_single`<br>`run_diagnostics_multi` | Versioned UDP wire protocol (`SDN_PROBE v1.0`), microsecond send/recv timestamps, sequence tracking, multi-client concurrency, burst mode, and artificial drop/delay testing. |
-| **2** | **Measure round-trip time** | [`diagnostic_client.py`](file:///home/sudh/Documents/cn_project/diagnostic_client.py) | `compute_probe_statistics`<br>`calculate_percentile` | High-precision RTT computation reporting minimum, maximum, mean, median, standard deviation jitter, **RFC 3550 inter-arrival jitter**, and **95th percentile (p95)** latency. |
-| **3** | **Detect packet loss** | [`diagnostic_client.py`](file:///home/sudh/Documents/cn_project/diagnostic_client.py)<br>[`probe_server.py`](file:///home/sudh/Documents/cn_project/probe_server.py) | `compute_probe_statistics`<br>`ProbeUDPHandler.handle` | Detects lost probes via socket timeouts, calculates exact packet loss percentages, flags duplicate replies, and identifies out-of-order packet delivery. |
-| **4** | **Implement path analysis** | [`path_analysis.py`](file:///home/sudh/Documents/cn_project/path_analysis.py) | `run_raw_udp_traceroute`<br>`run_path_analysis`<br>`parse_tracepath_output` | Dual-mode IP-layer hop tracing (UDP/ICMP raw sockets with system `tracepath`/`traceroute` fallback) reporting per-hop RTT/loss, with clear documentation of SDN Layer 2 TTL transparency. |
-| **5** | **Discover SDN topology** | [`sdn_topology.py`](file:///home/sudh/Documents/cn_project/sdn_topology.py)<br>[`topology_graph.py`](file:///home/sudh/Documents/cn_project/topology_graph.py) | `discover_topology`<br>`watch_topology`<br>`SDNTopologyGraph.load_from_dict` | Discovers switches, links, and hosts from Ryu (`/v1.0/topology/*`) and OpenDaylight RESTCONF; converts into standardized graph model; monitors dynamic link state changes (`--watch`). |
-| **6** | **Correlate measurements with paths** | [`flow_inspector.py`](file:///home/sudh/Documents/cn_project/flow_inspector.py)<br>[`correlate.py`](file:///home/sudh/Documents/cn_project/correlate.py) | `FlowInspector.reconstruct_active_path`<br>`correlate` | Reconstructs the **actual forwarding path** by querying installed OpenFlow flow rules (`/stats/flow/<dpid>`) and egress ports; distinguishes `flow_table` vs `assumed_shortest` sources. |
-| **7** | **Identify failed paths** | [`correlate.py`](file:///home/sudh/Documents/cn_project/correlate.py)<br>[`reroute_helper.py`](file:///home/sudh/Documents/cn_project/reroute_helper.py) | `analyze_port_stats_deltas`<br>`analyze_topology_liveness`<br>`filter_and_rank_backups`<br>`apply_reroute` | Classifies health (`HEALTHY`, `DEGRADED`, `FAILED`); localizes suspect links via port drop counters, segment probes, and topology liveness diffs; prunes bad links to rank viable backups and installs flow overrides. |
+| **1** | **UDP diagnostic probes** | [`probe_server.py`](probe_server.py)<br>[`diagnostic_client.py`](diagnostic_client.py) | `ProbeUDPHandler.handle`<br>`run_diagnostics_single`<br>`run_diagnostics_multi` | Versioned UDP wire protocol (`SDN_PROBE v1.0`), microsecond send/recv timestamps, sequence tracking, multi-client concurrency, burst mode, and artificial drop/delay testing. |
+| **2** | **Measure round-trip time** | [`diagnostic_client.py`](diagnostic_client.py) | `compute_probe_statistics`<br>`calculate_percentile` | High-precision RTT computation reporting minimum, maximum, mean, median, standard deviation jitter, **RFC 3550 inter-arrival jitter**, and **95th percentile (p95)** latency. |
+| **3** | **Detect packet loss** | [`diagnostic_client.py`](diagnostic_client.py)<br>[`probe_server.py`](probe_server.py) | `compute_probe_statistics`<br>`ProbeUDPHandler.handle` | Detects lost probes via socket timeouts, calculates exact packet loss percentages, flags duplicate replies, and identifies out-of-order packet delivery. |
+| **4** | **Implement path analysis** | [`path_analysis.py`](path_analysis.py) | `run_raw_udp_traceroute`<br>`run_path_analysis`<br>`parse_tracepath_output` | Dual-mode IP-layer hop tracing (UDP/ICMP raw sockets with system `tracepath`/`traceroute` fallback) reporting per-hop RTT/loss, with clear documentation of SDN Layer 2 TTL transparency. |
+| **5** | **Discover SDN topology** | [`sdn_topology.py`](sdn_topology.py)<br>[`topology_graph.py`](topology_graph.py) | `discover_topology`<br>`watch_topology`<br>`SDNTopologyGraph.load_from_dict` | Discovers switches, links, and hosts from Ryu (`/v1.0/topology/*`) and OpenDaylight RESTCONF; converts into standardized graph model; monitors dynamic link state changes (`--watch`). |
+| **6** | **Correlate measurements with paths** | [`flow_inspector.py`](flow_inspector.py)<br>[`correlate.py`](correlate.py) | `FlowInspector.reconstruct_active_path`<br>`correlate` | Reconstructs the **actual forwarding path** by querying installed OpenFlow flow rules (`/stats/flow/<dpid>`) and egress ports; distinguishes `flow_table` vs `assumed_shortest` sources. |
+| **7** | **Identify failed paths** | [`correlate.py`](correlate.py)<br>[`reroute_helper.py`](reroute_helper.py) | `analyze_port_stats_deltas`<br>`analyze_topology_liveness`<br>`filter_and_rank_backups`<br>`apply_reroute` | Classifies health (`HEALTHY`, `DEGRADED`, `FAILED`); localizes suspect links via port drop counters, segment probes, and topology liveness diffs; prunes bad links to rank viable backups and installs flow overrides. |
 
 ---
 
@@ -122,7 +141,7 @@ All system functionality is accessible via the modular `sdnscope.py` CLI:
 
 ## 6. Real Scenario Walkthrough & Verified Results
 
-The entire 4-scenario suite runs end-to-end on a live Mininet 2.3.0 + Ryu 4.34 testbed using [`scripts/run_all_scenarios.sh`](file:///home/sudh/Documents/cn_project/scripts/run_all_scenarios.sh). All artifacts are persisted in `results/real_<timestamp>/` (symlinked to `results/latest/`).
+The entire 4-scenario suite runs end-to-end on a live Mininet 2.3.0 + Ryu 4.34 testbed using [`scripts/run_all_scenarios.sh`](scripts/run_all_scenarios.sh). All artifacts are persisted in `results/real_<timestamp>/` (symlinked to `results/latest/`).
 
 ### Comparative Scenario Performance Summary
 | Metric | Healthy Baseline | Degraded Path | Failed Link | Failover Recovery |
@@ -145,7 +164,7 @@ The entire 4-scenario suite runs end-to-end on a live Mininet 2.3.0 + Ryu 4.34 t
 | **Suspected Broken Link** | None | `s1 <---> s2` (60.0% confidence) | `s1 <---> s2` (100.0% confidence) | None |
 | **Recommended Backup Route** | `h1 -> s1 -> s3 -> s2 -> h2` | `h1 -> s1 -> s3 -> s2 -> h2` | `h1 -> s1 -> s3 -> s2 -> h2` | N/A (Already active) |
 
-*(Complete raw outputs and execution logs are compiled in [`docs/EVIDENCE.md`](file:///home/sudh/Documents/cn_project/docs/EVIDENCE.md)).*
+*(Complete raw outputs and execution logs are compiled in [`docs/EVIDENCE.md`](docs/EVIDENCE.md)).*
 
 ---
 
@@ -170,7 +189,7 @@ make real-scenarios
 ## 8. Technical Limitations & Engineering Tradeoffs
 
 1. **OpenFlow Layer 2 TTL Transparency:**
-   In OpenFlow fabrics without explicit `dec_ttl` actions, Layer 2 bridges forward Ethernet frames without modifying the IPv4 TTL. Standard `traceroute` is transparent to OpenFlow switches and reports only 1 hop. Our framework solves this by making OpenFlow flow-table inspection ([`flow_inspector.py`](file:///home/sudh/Documents/cn_project/flow_inspector.py)) the authoritative source for path discovery.
+   In OpenFlow fabrics without explicit `dec_ttl` actions, Layer 2 bridges forward Ethernet frames without modifying the IPv4 TTL. Standard `traceroute` is transparent to OpenFlow switches and reports only 1 hop. Our framework solves this by making OpenFlow flow-table inspection ([`flow_inspector.py`](flow_inspector.py)) the authoritative source for path discovery.
 2. **One-Way Delay Clock Synchronization:**
    One-way forward ($T_{recv} - T_{send}$) and reverse delay estimates are subject to clock skew between endpoints unless hardware time synchronization (such as IEEE 1588 PTP or sub-millisecond NTP) is present. **Round-Trip Time (RTT)** relies strictly on client-side timestamps and remains mathematically immune to clock skew.
 3. **Control-Plane Polling Intervals:**
@@ -180,10 +199,14 @@ make real-scenarios
 
 ## 9. Project Documentation Index
 
-- [`SETUP.md`](file:///home/sudh/Documents/cn_project/SETUP.md): Mininet, isolated Ryu virtualenv, and system setup guide.
-- [`docs/DESIGN.md`](file:///home/sudh/Documents/cn_project/docs/DESIGN.md): Architectural decisions, protocol formats, and mathematical formulas.
-- [`docs/EVIDENCE.md`](file:///home/sudh/Documents/cn_project/docs/EVIDENCE.md): Full transcripts, comparative tables, and live verification logs.
-- [`docs/DEMO.md`](file:///home/sudh/Documents/cn_project/docs/DEMO.md): 5-minute step-by-step oral presentation demonstration script.
-- [`docs/VIVA.md`](file:///home/sudh/Documents/cn_project/docs/VIVA.md): 20 likely examiner questions with comprehensive technical answers.
-- [`docs/schemas.md`](file:///home/sudh/Documents/cn_project/docs/schemas.md): JSON schemas for all telemetry packets, topology, and reports.
-- [`CHANGELOG.md`](file:///home/sudh/Documents/cn_project/CHANGELOG.md): Record of changes and version releases.
+- [`SETUP.md`](SETUP.md): Mininet, isolated Ryu virtualenv, and system setup guide.
+- [`docs/DESIGN.md`](docs/DESIGN.md): Architectural decisions, protocol formats, and mathematical formulas.
+- [`docs/EVIDENCE.md`](docs/EVIDENCE.md): Full transcripts, comparative tables, and live verification logs.
+- [`docs/DEMO.md`](docs/DEMO.md): 5-minute step-by-step oral presentation demonstration script.
+- [`docs/VIVA.md`](docs/VIVA.md): 20 likely examiner questions with comprehensive technical answers.
+- [`docs/schemas.md`](docs/schemas.md): JSON schemas for all telemetry packets, topology, and reports.
+- [`CHANGELOG.md`](CHANGELOG.md): Record of changes and version releases.
+
+## Submission
+
+Acceptance criteria, expected outputs, and official evidence: [SUBMISSION_CHECKLIST.md](SUBMISSION_CHECKLIST.md)

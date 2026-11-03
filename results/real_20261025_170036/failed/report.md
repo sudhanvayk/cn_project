@@ -49,7 +49,7 @@
 
 
 ### RTT Time-Series Chart
-![RTT Time-Series Chart](/home/sudh/Documents/cn_project/results/real_20261025_170036/failed/rtt_timeseries.png)
+![RTT Time-Series Chart](rtt_timeseries.png)
 
 ---
 

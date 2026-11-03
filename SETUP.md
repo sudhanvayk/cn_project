@@ -62,7 +62,7 @@ To avoid dependency conflicts between modern Python 3.12 (standard on Ubuntu 24.
 
 ### Recipe 1: Project Environment (.venv - Python 3.12)
 ```bash
-cd /home/sudh/Documents/cn_project
+cd cn_project
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
