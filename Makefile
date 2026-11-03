@@ -77,3 +77,11 @@ help: ## Show this help message
 	@echo ""
 	@echo "First time? Run 'make run' for the self-contained localhost demo."
 	@echo "Live testbed? Run 'make real-check' then 'make real-scenarios'."
+
+.PHONY: validate
+validate: ## Run lint, tests and the localhost demo with a pass/fail summary
+	bash scripts/validate.sh
+
+.PHONY: validate
+validate: ## Run lint, tests and the localhost demo with a pass/fail summary
+	bash scripts/validate.sh
