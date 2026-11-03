@@ -81,7 +81,3 @@ help: ## Show this help message
 .PHONY: validate
 validate: ## Run lint, tests and the localhost demo with a pass/fail summary
 	bash scripts/validate.sh
-
-.PHONY: validate
-validate: ## Run lint, tests and the localhost demo with a pass/fail summary
-	bash scripts/validate.sh
