@@ -50,10 +50,11 @@ Mininet + Ryu testbed; these artifacts are committed as evidence).
 
 These directories are the evidence of record:
 
-- `results/real_20261025_170036/` — full four-scenario suite on a live testbed
+- `results/real_20261025_170036/` — most recent full four-scenario suite on a live Mininet + Ryu testbed (`results/latest` points here); source of the verdicts in section 4
+- `results/real_20261023_190236/` — earlier full four-scenario suite; the run whose telemetry is analysed in `docs/EVIDENCE.md` and `FINAL_SUMMARY.md`
 - `results/demo_localhost/` — reproducible localhost demonstration
 - `results/cli_verification/` — CLI verification transcript
 - `docs/EVIDENCE.md` — full transcripts, comparative tables, verification logs
 
-Other timestamped directories under `results/` are earlier runs retained for
-history and are not part of the graded submission.
+Both timestamped runs are part of the graded submission and are retained
+deliberately.
