@@ -206,3 +206,7 @@ make real-scenarios
 - [`docs/VIVA.md`](docs/VIVA.md): 20 likely examiner questions with comprehensive technical answers.
 - [`docs/schemas.md`](docs/schemas.md): JSON schemas for all telemetry packets, topology, and reports.
 - [`CHANGELOG.md`](CHANGELOG.md): Record of changes and version releases.
+
+## Submission
+
+Acceptance criteria, expected outputs, and official evidence: [SUBMISSION_CHECKLIST.md](SUBMISSION_CHECKLIST.md)
