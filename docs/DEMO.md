@@ -6,7 +6,7 @@ This document provides an exact, step-by-step demonstration script for examiners
 
 ## Prerequisites (0:00 - 0:30)
 
-Open a terminal in the project root `/home/sudh/Documents/cn_project`:
+Open a terminal in the project root `cn_project`:
 
 ```bash
 # Verify environment and dependencies

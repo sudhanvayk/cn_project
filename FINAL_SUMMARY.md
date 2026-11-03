@@ -7,7 +7,7 @@
 **Execution Environment:** Ubuntu 24.04 VM (`sudh-VB`, Linux kernel 7.0.0-38-generic)  
 **Controller Runtime:** Ryu 4.34 in Python 3.9 venv (`~/ryu-env/bin/ryu-manager`)  
 **Data Plane Testbed:** Mininet 2.3.0 + Open vSwitch 3.3.9 Diamond Topology (s1, s2, s3, h1, h2)  
-**Project Tooling:** Python 3.12 (`/home/sudh/Documents/cn_project/.venv`)  
+**Project Tooling:** Python 3.12 (`.venv`)  
 
 ---
 

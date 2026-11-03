@@ -2,7 +2,7 @@
 
 **Date:** 2026-10-19  
 **Branch:** `feature/complete-sdn-diagnostics`  
-**Workspace:** `/home/sudh/Documents/cn_project`  
+**Workspace:** repository root  
 **Auditor:** Senior Network & SDN Systems Engineer  
 
 ---

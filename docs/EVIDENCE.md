@@ -36,7 +36,7 @@ SUDO_OK
 ovs-vsctl (Open vSwitch) 3.3.9
 DB Schema 8.4.0
 [3/6] Ryu Manager (Isolated venv) Check:
-/home/sudh/ryu-env/bin/ryu-manager
+~/ryu-env/bin/ryu-manager
 ryu-manager 4.34
 [4/6] Port Conflict Check (6653, 6633, 8080, 9999):
 PORTS_FREE

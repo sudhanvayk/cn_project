@@ -4,7 +4,7 @@
 **Topic:** Topic 13 — Socket-Based Network Diagnostic and Path Analysis Tool for SDN  
 **Protocol:** UDP  
 **Version:** 1.1.1  
-**Working Directory:** `/home/sudh/Documents/cn_project`  
+**Working Directory:** repository root  
 **Python Version:** 3.8 – 3.12  
 **OS:** Linux (Ubuntu 20.04/22.04/24.04 LTS, Debian 11/12 recommended)
 
