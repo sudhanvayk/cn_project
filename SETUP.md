@@ -94,10 +94,18 @@ uv pip install --no-build-isolation "ryu==4.34"
 
 ## 3. Mininet & Open vSwitch Installation
 
+One-shot bootstrap (installs packages, enables OVS, runs a pingall smoke test):
+
+```bash
+sudo bash scripts/bootstrap_live_env.sh
+```
+
+Or manually:
+
 ```bash
 # 1. Install Mininet, Open vSwitch, and system utilities
 sudo apt update
-sudo apt install -y mininet openvswitch-switch iproute2 traceroute
+sudo apt install -y mininet openvswitch-switch iproute2 traceroute python3-venv
 
 # 2. Start and enable Open vSwitch service
 sudo systemctl enable --now openvswitch-switch
@@ -105,6 +113,9 @@ sudo systemctl enable --now openvswitch-switch
 # 3. Verify Open vSwitch and Mininet operation
 sudo mn --test pingall
 ```
+
+> [!NOTE]
+> `make real-check` and `make real-scenarios` prompt for your sudo password once if passwordless sudo is not configured. If `python3 -m venv` fails with "ensurepip is not available", `make install` automatically falls back to `venv --without-pip` plus the system pip. Installing `python3-venv` (done above) also resolves it.
 
 ---
 
@@ -171,7 +182,7 @@ The automated suite runs all 4 real network scenarios end-to-end on the live Min
 
 ### Scenario Execution Flow
 1. **Healthy:** Validates nominal RTT (13.24 ms, 0% loss) along primary route `h1 -> s1 -> s2 -> h2`.
-2. **Degraded:** Injects kernel `netem` delay (+30 ms) and loss (5%) on `s1-eth2` and `s2-eth2`, producing 10% loss and 73.32 ms RTT. Localizes fault to `s1 <---> s2` (60% confidence).
+2. **Degraded:** Injects kernel `netem` delay (+30 ms) and loss (5%) on `s1-eth2` and `s2-eth2`, producing 10% loss and 73.32 ms RTT. Captures `tc -s qdisc` before/after probing and localizes `s1 <---> s2` at **95% confidence** from the qdisc drop delta (60% path-membership heuristic only if qdisc telemetry is unavailable).
 3. **Failed:** Simulates physical link severance (`link s1 s2 down`), producing 100% loss. Correlates OVS port drops with controller topology withdrawal (100% confidence).
 4. **Recovery:** Deploys bidirectional OpenFlow rules along backup route `h1 -> s1 -> s3 -> s2 -> h2` at priority 200. Probes confirm full recovery (19.94 ms RTT, 0% loss).
 
@@ -180,6 +191,11 @@ All artifacts, JSON telemetry, Markdown reports (`report.md`), HTML reports (`re
 ---
 
 ## 7. Exercising Live CLI Subcommands
+
+> [!TIP]
+> `sudo python3 scripts/verify_live_cli.py` runs every subcommand below in one shot
+> (it starts Ryu itself, bounces `s1 <-> s2` during `watch`, and stops cleanly). It now
+> aborts with the Ryu log tail if the controller or flows fail to come up.
 
 With Ryu and Mininet active, run SDNScope CLI commands:
 

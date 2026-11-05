@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-11-03T15:45:42Z",
+  "timestamp": "2026-11-05T16:46:07Z",
   "path_status": "HEALTHY_PATH",
   "source_node": "h1",
   "destination_node": "h2",
@@ -18,7 +18,8 @@
   },
   "failed_path_reason": "None (Path is healthy and operating within nominal thresholds)",
   "packet_loss_percentage": 0.0,
-  "mean_rtt": 1.338,
+  "mean_rtt": 0.82,
+  "qdisc_drop_delta": null,
   "suspected_links": [],
   "ranked_backup_paths": [
     {
@@ -57,13 +58,13 @@
     "probes_received": 10,
     "probes_lost": 0,
     "packet_loss_percentage": 0.0,
-    "min_rtt_ms": 0.793,
-    "max_rtt_ms": 1.984,
-    "mean_rtt_ms": 1.338,
-    "median_rtt_ms": 1.302,
-    "stddev_rtt_ms": 0.42,
-    "rfc3550_jitter_ms": 0.193,
-    "p95_rtt_ms": 1.88
+    "min_rtt_ms": 0.519,
+    "max_rtt_ms": 1.068,
+    "mean_rtt_ms": 0.82,
+    "median_rtt_ms": 0.883,
+    "stddev_rtt_ms": 0.195,
+    "rfc3550_jitter_ms": 0.112,
+    "p95_rtt_ms": 1.036
   },
   "thresholds": {
     "degraded_rtt_ms": 50.0,

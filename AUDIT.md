@@ -49,7 +49,7 @@ The existing codebase provides a foundational prototype structure across 6 core 
 8. **Automated HTML/Markdown Reporting Engine (`report.py`):**
    Generates executive reports with topology diagrams, telemetry charts, and failure diagnosis.
 9. **Documentation Suite:**
-   `SETUP.md`, `docs/DESIGN.md`, `docs/DEMO.md`, `docs/VIVA.md` (20 examiner questions & answers), and `docs/schemas.md`.
+   `SETUP.md`, `docs/DESIGN.md`, `docs/DEMO.md`, and `docs/schemas.md`.
 
 ---
 

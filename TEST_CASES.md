@@ -5,7 +5,7 @@ Results below were collected on 2026-11-02 in this checkout. `NOT RUN` is distin
 | ID | Description and input conditions | Expected output | Actual output | Status |
 |---|---|---|---|---|
 | ENV-01 | Install runtime and development dependencies using `make install` | Installation completes in project venv | Completed with Python 3.12.7; requests, matplotlib, pytest, pytest-cov, and Ruff installed | PASS |
-| AUTO-01 | Run `make test` | All unit/integration tests pass | 73 passed, 0 failed; total measured coverage 67% | PASS |
+| AUTO-01 | Run `make test` | All unit/integration tests pass | 82 passed, 0 failed | PASS |
 | AUTO-02 | Run `make lint` | Ruff reports no findings | `All checks passed!` | PASS |
 | AUTO-03 | Compile project Python sources excluding `.venv` and `.git` | No syntax errors | `py_compile` exit code 0 | PASS |
 | DEMO-01 | Run `make run` | Full localhost workflow exits successfully | Passed twice, including topology, paths, probes, trace fallback, correlation, reroute, and reports | PASS |

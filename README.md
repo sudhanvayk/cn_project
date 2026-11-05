@@ -17,7 +17,7 @@ git clone https://github.com/sudhanvayk/cn_project.git
 cd cn_project
 make install   # builds .venv, installs runtime + dev dependencies
 make lint      # → All checks passed!
-make test      # → 71 passed, 64% coverage
+make test      # → 82 passed
 make demo      # → [SUCCESS] Full local demonstration completed successfully!
 ```
 
@@ -133,7 +133,7 @@ All system functionality is accessible via the modular `sdnscope.py` CLI:
 | `paths` | Find and rank all loop-free simple paths (BFS) | `-s h1 -d h2 -f topo.json -o paths.json` |
 | `correlate` | Correlate telemetry, localize faults, rank backups | `-d diag.json -t topo.json -s h1 -e h2 --controller <url>` |
 | `watch` | Monitor live SDN topology changes in real time | `-c ryu -i 127.0.0.1 -p 8080 --interval 1` |
-| `localize` | Run dedicated 3-tier failure localization | `-t topo.json --baseline-stats b.json --current-stats c.json` |
+| `localize` | Run dedicated multi-source failure localization | `-t topo.json --baseline-stats b.json --current-stats c.json --qdisc-before qb.txt --qdisc-after qa.txt` |
 | `reroute` | Install OpenFlow backup flow modifications | `-r report.json -t topo.json -c <url> [--apply]` |
 | `report` | Generate Markdown, HTML, and chart reports | `-r report.json -d diag.json -m report.md -H report.html` |
 
@@ -144,34 +144,40 @@ All system functionality is accessible via the modular `sdnscope.py` CLI:
 The entire 4-scenario suite runs end-to-end on a live Mininet 2.3.0 + Ryu 4.34 testbed using [`scripts/run_all_scenarios.sh`](scripts/run_all_scenarios.sh). All artifacts are persisted in `results/real_<timestamp>/` (symlinked to `results/latest/`).
 
 ### Comparative Scenario Performance Summary
+
+Latest run: `results/real_20261105_222258` (`results/latest`) on Ubuntu 26.04 /
+Mininet 2.3.0 / Open vSwitch 3.7.1 / Ryu 4.34.
+
 | Metric | Healthy Baseline | Degraded Path | Failed Link | Failover Recovery |
 |---|---|---|---|---|
 | **Scenario Name** | `healthy` | `degraded` | `failed` | `recovery` |
 | **Active Forwarding Route** | `h1 -> s1 -> s2 -> h2` | `h1 -> s1 -> s2 -> h2` | `h1 -> s1 -> s2 -> h2` | `h1 -> s1 -> s3 -> s2 -> h2` |
 | **Hop Count** | 3 | 3 | 3 | 4 (+1 hop) |
 | **Path Source** | `FLOW_TABLE` | `FLOW_TABLE` | `FLOW_TABLE` | `FLOW_TABLE` |
-| **Physical Impairment** | None (nominal) | `netem` 30ms delay, 5% loss on s1-eth2/s2-eth2 | `link s1 s2 down` (physical severed) | `link s1 s2 down` + backup flows |
-| **Probes Sent / Received** | 50 / 50 | 100 / 90 | 20 / 0 | 50 / 50 |
-| **Packet Loss Rate** | **0.00%** | **10.00%** | **100.00%** | **0.00%** |
-| **Mean RTT** | **13.24 ms** | **73.32 ms** | **N/A** | **19.94 ms** |
-| **Median RTT** | 11.81 ms | 69.57 ms | N/A | 18.89 ms |
-| **Min / Max RTT** | 9.89 ms / 32.42 ms | 65.92 ms / 243.85 ms | N/A | 14.74 ms / 32.34 ms |
-| **95th Percentile RTT (p95)** | 19.59 ms | 87.34 ms | N/A | 28.28 ms |
-| **StdDev RTT** | 3.94 ms | 19.18 ms | N/A | 3.98 ms |
-| **RFC 3550 Inter-Arrival Jitter**| 3.85 ms | 10.96 ms | N/A | 3.75 ms |
+| **Physical Impairment** | None (nominal) | `netem` 30ms delay, 5% loss on s1-eth2/s2-eth2 | `link s1 s2 down` (physically severed) | `link s1 s2 down` + backup flows |
+| **Probes Sent / Received** | 50 / 50 | 100 / 92 | 20 / 0 | 50 / 50 |
+| **Packet Loss Rate** | **0.00%** | **8.00%** | **100.00%** | **0.00%** |
+| **Mean RTT** | **9.68 ms** | **66.33 ms** | **N/A** | **14.29 ms** |
+| **Median RTT** | 9.67 ms | 66.37 ms | N/A | 14.34 ms |
+| **Min / Max RTT** | 8.90 ms / 10.72 ms | 64.82 ms / 67.90 ms | N/A | 13.12 ms / 15.50 ms |
+| **95th Percentile RTT (p95)** | 10.46 ms | 67.29 ms | N/A | 15.06 ms |
+| **StdDev RTT** | 0.53 ms | 0.63 ms | N/A | 0.57 ms |
+| **RFC 3550 Inter-Arrival Jitter**| 0.44 ms | 0.61 ms | N/A | 0.69 ms |
 | **Path Health Verdict** | `HEALTHY_PATH` | `DEGRADED_PATH` | `FAILED_PATH` | `HEALTHY_PATH` |
-| **Failure Diagnosis** | Nominal baseline | Packet loss (10.0%) & high RTT (73.32ms) | Severe packet loss (100.0%) | Nominal operation on backup route |
-| **Suspected Broken Link** | None | `s1 <---> s2` (60.0% confidence) | `s1 <---> s2` (100.0% confidence) | None |
+| **Failure Diagnosis** | Nominal baseline | Packet loss (8.0%) & high RTT (66.33 ms) | Severe packet loss (100.0%) | Nominal operation on backup route |
+| **Suspected Broken Link** | None | `s1 <---> s2` (**95.0%** from 17 qdisc drops; 60% heuristic only when qdisc telemetry is unavailable) | `s1 <---> s2` (100.0% confidence) | None |
 | **Recommended Backup Route** | `h1 -> s1 -> s3 -> s2 -> h2` | `h1 -> s1 -> s3 -> s2 -> h2` | `h1 -> s1 -> s3 -> s2 -> h2` | N/A (Already active) |
 
 *(Complete raw outputs and execution logs are compiled in [`docs/EVIDENCE.md`](docs/EVIDENCE.md)).*
+
+> **Independent repeat:** `results/real_20261105_150848` reproduced the same 95.0% localization from 19 kernel qdisc drops. The historical `results/real_20261023_190236` run is retained as the reference analysed in `docs/EVIDENCE.md`.
 
 ---
 
 ## 7. Automated Testing & Quality Gates
 
 ```bash
-# Run pytest test suite (69 tests with coverage report)
+# Run pytest test suite (82 tests with coverage report)
 make test
 
 # Run ruff static code analysis
@@ -199,14 +205,22 @@ make real-scenarios
 
 ## 9. Project Documentation Index
 
+**Start here**
+- [`SUBMISSION_CHECKLIST.md`](SUBMISSION_CHECKLIST.md): acceptance criteria, expected outputs, and official evidence.
 - [`SETUP.md`](SETUP.md): Mininet, isolated Ryu virtualenv, and system setup guide.
-- [`docs/DESIGN.md`](docs/DESIGN.md): Architectural decisions, protocol formats, and mathematical formulas.
-- [`docs/EVIDENCE.md`](docs/EVIDENCE.md): Full transcripts, comparative tables, and live verification logs.
-- [`docs/DEMO.md`](docs/DEMO.md): 5-minute step-by-step oral presentation demonstration script.
-- [`docs/VIVA.md`](docs/VIVA.md): 20 likely examiner questions with comprehensive technical answers.
+
+**Technical reference**
+- [`docs/DESIGN.md`](docs/DESIGN.md): architectural decisions, protocol formats, and mathematical formulas.
 - [`docs/schemas.md`](docs/schemas.md): JSON schemas for all telemetry packets, topology, and reports.
-- [`CHANGELOG.md`](CHANGELOG.md): Record of changes and version releases.
+- [`docs/EVIDENCE.md`](docs/EVIDENCE.md): full transcripts, comparative tables, and live verification logs.
+- [`docs/DEMO.md`](docs/DEMO.md): 5-minute step-by-step demonstration script.
 
-## Submission
-
-Acceptance criteria, expected outputs, and official evidence: [SUBMISSION_CHECKLIST.md](SUBMISSION_CHECKLIST.md)
+**Project & test records**
+- [`PROJECT_SUMMARY.md`](PROJECT_SUMMARY.md): complete project report, inventory, and roadmap.
+- [`FINAL_SUMMARY.md`](FINAL_SUMMARY.md): final validated results and submission status.
+- [`TEST_CASES.md`](TEST_CASES.md): test-case matrix.
+- [`TESTER_REPORT.md`](TESTER_REPORT.md): independent tester report.
+- [`BUG_REPORT.md`](BUG_REPORT.md): defects found and their resolution.
+- [`TEST_EVIDENCE/README.md`](TEST_EVIDENCE/README.md): index of captured test evidence.
+- [`AUDIT.md`](AUDIT.md): original codebase audit and gap analysis.
+- [`CHANGELOG.md`](CHANGELOG.md): change history.

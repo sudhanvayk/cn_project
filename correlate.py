@@ -6,8 +6,9 @@ Part of the Socket-Based Network Diagnostic and Path Analysis Tool for SDN.
 
 Correlates active UDP measurement metrics (RTT and packet loss) with SDN
 network topology data and OpenFlow flow tables. Classifies path health,
-localizes failure using three distinct evidence sources (port statistics deltas,
-per-segment probing, and controller link liveness), pinpoints suspected failed links
+localizes failure using four evidence sources (switch port statistics deltas,
+kernel qdisc drop deltas, per-segment probing, and controller link liveness),
+pinpoints suspected failed links
 with confidence scores, and prunes broken links to rank viable alternative backup paths.
 """
 
@@ -191,6 +192,135 @@ def analyze_port_stats_deltas(baseline_stats: dict, current_stats: dict, links: 
     return suspects
 
 
+def parse_qdisc_stats(raw: str) -> dict:
+    """
+    Parse `tc -s qdisc show dev <iface>` output into per-interface counters.
+
+    Accepts either a single tc output block, or a multi-section capture labelled
+    with interface headers (as written by topology/scenario_runner.py), e.g.::
+
+        s1-eth2:
+        qdisc netem 10: root refcnt 5 limit 1000 delay 30ms loss 5%
+         Sent 16427 bytes 99 pkt (dropped 9, overlimits 0 requeues 0)
+    """
+    stats = {}
+    current = None
+    for line in raw.splitlines():
+        header = re.match(r"^([A-Za-z0-9_.:@/-]+):\s*$", line)
+        if header:
+            current = header.group(1)
+            stats.setdefault(current, {"sent_packets": 0, "dropped": 0})
+            continue
+
+        sent = re.search(
+            r"Sent\s+(\d+)\s+bytes\s+(\d+)\s+pkt\s+\(dropped\s+(\d+)", line
+        )
+        if sent:
+            iface = current or f"iface{len(stats)}"
+            stats[iface] = {
+                "sent_packets": int(sent.group(2)),
+                "dropped": int(sent.group(3)),
+            }
+    return stats
+
+
+def load_qdisc_stats(path: str) -> dict:
+    """
+    Load kernel qdisc counters from a raw `tc -s qdisc` capture or a JSON file.
+
+    JSON may map interface names either to an integer drop count or to an object
+    containing a ``dropped`` key.
+    """
+    if not path or not os.path.exists(path):
+        return {}
+
+    with open(path, "r", encoding="utf-8") as f:
+        raw = f.read()
+    if not raw.strip():
+        return {}
+
+    if raw.lstrip().startswith("{"):
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError:
+            data = None
+        if isinstance(data, dict):
+            normalised = {}
+            for iface, value in data.items():
+                if isinstance(value, dict):
+                    normalised[iface] = {
+                        "sent_packets": int(value.get("sent_packets", 0) or 0),
+                        "dropped": int(value.get("dropped", 0) or 0),
+                    }
+                else:
+                    normalised[iface] = {
+                        "sent_packets": 0,
+                        "dropped": int(value or 0),
+                    }
+            return normalised
+
+    return parse_qdisc_stats(raw)
+
+
+def analyze_qdisc_deltas(baseline_stats: dict, current_stats: dict, links: list) -> list:
+    """
+    Evidence Source D: Linux kernel qdisc (tc/netem) drop counter deltas.
+
+    Open vSwitch hands frames to the Linux veth netdevice before a netem qdisc
+    drops them, so OVS port counters stay at zero under `tc netem` impairment.
+    Kernel qdisc counters measure those drops directly and therefore upgrade
+    degraded-link localization from heuristic inference to measurement.
+    """
+    suspects = []
+    if not baseline_stats or not current_stats:
+        return suspects
+
+    def port_to_int(port):
+        if port is None:
+            return None
+        try:
+            return int(str(port), 0)
+        except (TypeError, ValueError):
+            return None
+
+    for link in links:
+        src = link.get("source")
+        dst = link.get("destination")
+        src_port = port_to_int(link.get("src_port"))
+        dst_port = port_to_int(link.get("dst_port"))
+        if not src or not dst or src_port is None or dst_port is None:
+            continue
+
+        per_iface = {}
+        for node, port in ((src, src_port), (dst, dst_port)):
+            iface = f"{node}-eth{port}"
+            if iface not in baseline_stats or iface not in current_stats:
+                continue
+            base_drops = int(baseline_stats[iface].get("dropped", 0) or 0)
+            curr_drops = int(current_stats[iface].get("dropped", 0) or 0)
+            delta = max(0, curr_drops - base_drops)
+            if delta > 0:
+                per_iface[iface] = delta
+
+        if per_iface:
+            total = sum(per_iface.values())
+            detail = ", ".join(f"{iface} +{drops}" for iface, drops in sorted(per_iface.items()))
+            ordered = sorted([src, dst])
+            suspects.append({
+                "link": [src, dst],
+                "link_str": f"{ordered[0]} <---> {ordered[1]}",
+                "evidence_type": "kernel_qdisc",
+                "confidence": 0.95,
+                "evidence": [
+                    f"Kernel qdisc drop counters incremented: {total} dropped packet(s) "
+                    f"({detail}) on link {ordered[0]} <---> {ordered[1]}"
+                ],
+                "drop_delta": total,
+            })
+
+    return suspects
+
+
 def analyze_segment_probes(segment_metrics: dict, active_path: list) -> list:
     """
     Evidence Source B: Per-segment probing anomaly detector.
@@ -358,6 +488,8 @@ def correlate(diag_file: str, topo_file: str, source_node: str,
               current_topo_file: str = None,
               baseline_stats_file: str = None,
               current_stats_file: str = None,
+              baseline_qdisc_file: str = None,
+              current_qdisc_file: str = None,
               override_thresholds: dict = None,
               rank_backups: bool = True) -> dict:
     """
@@ -433,6 +565,17 @@ def correlate(diag_file: str, topo_file: str, source_node: str,
     if base_stats and curr_stats:
         suspects_raw.extend(analyze_port_stats_deltas(base_stats, curr_stats, graph.links))
 
+    # Evidence A2: Kernel qdisc drop deltas (tc/netem), a direct measurement
+    # of drops that occur below Open vSwitch's port counters.
+    qdisc_base = load_qdisc_stats(baseline_qdisc_file) if baseline_qdisc_file else {}
+    qdisc_curr = load_qdisc_stats(current_qdisc_file) if current_qdisc_file else {}
+    qdisc_available = bool(qdisc_base and qdisc_curr)
+    qdisc_drop_delta = None
+    if qdisc_available:
+        qdisc_suspects = analyze_qdisc_deltas(qdisc_base, qdisc_curr, graph.links)
+        qdisc_drop_delta = sum(s.get("drop_delta", 0) for s in qdisc_suspects)
+        suspects_raw.extend(qdisc_suspects)
+
     # Evidence B: Segment probing
     segment_metrics = diag_data.get("segment_metrics", {})
     if segment_metrics:
@@ -488,14 +631,23 @@ def correlate(diag_file: str, topo_file: str, source_node: str,
             v_type = graph.nodes.get(v, {}).get("type", "unknown")
             # Only suspect switch-to-switch core links to keep host access links viable
             if u_type == "switch" and v_type == "switch":
+                if qdisc_available:
+                    missing = (
+                        "OVS port drop counters and kernel qdisc drop counters showed no "
+                        "localized anomaly, and topology link state remained UP"
+                    )
+                else:
+                    missing = (
+                        "OVS port drop counters showed no anomaly, kernel qdisc telemetry "
+                        "was not supplied, and topology link state remained UP"
+                    )
                 suspects_raw.append({
                     "link": [u, v],
                     "link_str": f"{u} <---> {v}",
                     "confidence": 0.60,
                     "evidence": [
-                        "Path-membership heuristic inference: active core link traversed during end-to-end "
-                        "degradation (not a physical measurement: OVS /stats/port drop counters were 0, "
-                        "kernel qdisc drops are not exposed via OpenFlow, and topology link state remained UP)"
+                        "Path-membership heuristic inference: active core link traversed during "
+                        f"end-to-end degradation (not a physical measurement: {missing})"
                     ]
                 })
 
@@ -521,6 +673,7 @@ def correlate(diag_file: str, topo_file: str, source_node: str,
         "failed_path_reason": failed_path_reason,
         "packet_loss_percentage": loss_pct,
         "mean_rtt": mean_rtt,
+        "qdisc_drop_delta": qdisc_drop_delta,
         "suspected_links": suspected_links,
         "ranked_backup_paths": ranked_backups,
         "recommended_backup_path": recommended_backup,
@@ -641,6 +794,8 @@ def main():
     parser.add_argument("--current-topo", dest="current_topo", help="Current active topology JSON file (if link has failed)")
     parser.add_argument("--baseline-stats", dest="baseline_stats", help="JSON file containing switch port stats before probing")
     parser.add_argument("--current-stats", dest="current_stats", help="JSON file containing switch port stats after probing")
+    parser.add_argument("--qdisc-before", dest="qdisc_before", help="Raw `tc -s qdisc` capture (or JSON) before probing")
+    parser.add_argument("--qdisc-after", dest="qdisc_after", help="Raw `tc -s qdisc` capture (or JSON) after probing")
     parser.add_argument("--degraded-loss", type=float, help="Override degraded packet loss percentage threshold")
     parser.add_argument("--failed-loss", type=float, help="Override failed packet loss percentage threshold")
     parser.add_argument("--degraded-rtt", type=float, help="Override degraded mean RTT (ms) threshold")
@@ -666,6 +821,8 @@ def main():
             current_topo_file=args.current_topo,
             baseline_stats_file=args.baseline_stats,
             current_stats_file=args.current_stats,
+            baseline_qdisc_file=args.qdisc_before,
+            current_qdisc_file=args.qdisc_after,
             override_thresholds=override_thresholds
         )
     except Exception as e:

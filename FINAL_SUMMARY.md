@@ -1,10 +1,10 @@
 # SDNScope — Final Verification & Mission Summary
 
 **Project:** SDNScope (Topic 13: Socket-Based Network Diagnostic and Path Analysis Tool for SDN)  
-**Release:** `v1.1.1`  
+**Release:** `v1.1.2`  
 **Base Branch:** `main` (Merged from `fix/v1.1.1-validation` with `--no-ff`)  
-**Tag:** `v1.1.1`  
-**Execution Environment:** Ubuntu 24.04 VM (`sudh-VB`, Linux kernel 7.0.0-38-generic)  
+**Tag:** `v1.1.2`  
+**Execution Environment:** Ubuntu 24.04 VM (`sudh-VB`) for the original validation; Ubuntu 26.04 (`sudh-LOQ`) for the latest qdisc validation  
 **Controller Runtime:** Ryu 4.34 in Python 3.9 venv (`~/ryu-env/bin/ryu-manager`)  
 **Data Plane Testbed:** Mininet 2.3.0 + Open vSwitch 3.3.9 Diamond Topology (s1, s2, s3, h1, h2)  
 **Project Tooling:** Python 3.10–3.14 (`.venv`)  
@@ -17,10 +17,24 @@ This mission successfully finished, hardened, and verified **SDNScope** on a gen
 
 Nothing in the final results is simulated, mocked, or reused:
 - **Baseline Healthy RTT:** Measured at **13.24 ms** (theoretical lower bound 8.0 ms + Python socket / OVS kernel qdisc processing; acceptable range 6–20 ms; 0.00% packet loss).
-- **Impaired Degraded RTT & Loss:** Measured at **73.32 ms** (+60 ms round-trip delay injected via Linux kernel `netem`) and **10.00% loss** (5% drop per direction). The 60.0% confidence localization on `s1 <---> s2` is explicitly documented as a **path-membership heuristic fallback** (raw qdisc: 13 drops; OVS port drop counters: 0).
+- **Impaired Degraded RTT & Loss:** Measured at **73.32 ms** (+60 ms round-trip delay injected via Linux kernel `netem`) and **10.00% loss** (5% drop per direction). That archived run reported 60.0% confidence on `s1 <---> s2` via the path-membership heuristic (raw qdisc: 5 + 8 = 13 drops; OVS port drop counters: 0). Re-correlating the same capture with `--qdisc-before/--qdisc-after` now yields **95.0% confidence from direct qdisc measurement**; the 2026-10-25 run (9 + 3 = 12 drops vs. 11 lost probes) independently yields 95.0% as well.
 - **Hard Link Failure:** 100.00% loss, physical link severed, localized to `s1 <---> s2` with **100% confidence** within 0.01s.
 - **Failover Recovery:** Rerouting deployed 12 bidirectional OpenFlow 1.3 rules (IPv4 + ARP) with priority 200 via Ryu REST API `/stats/flowentry/add`, immediately restoring connectivity across `h1 -> s1 -> s3 -> s2 -> h2` (4 hops, **19.94 ms RTT**, **0.00% loss**).
 - **Traceroute Hop 1 Reachability:** Diagnostic confirmed destination `h2` responds at Hop 1 with ICMP Port Unreachable (`10.0.0.2`, 0.0% loss, 11.88 ms RTT) because intermediate OpenFlow switches act as Layer 2 bridges and do not decrement IPv4 TTL. Flow rules were verified active across the test harnesses.
+
+### Latest live validation — 2026-11-05
+
+The latest four-scenario run on Ubuntu 26.04 with Mininet 2.3.0, Open vSwitch 3.7.1 and Ryu 4.34 is `results/real_20261105_222258/` (linked as `results/latest`). It re-verified the full workflow with kernel qdisc telemetry wired in:
+
+| Scenario | Probes | Loss | Mean RTT | Localization / Path |
+|---|---|---|---|---|
+| Healthy | 50 / 50 | 0.00% | 9.68 ms | No suspects; `h1 -> s1 -> s2 -> h2` |
+| Degraded | 100 / 92 | 8.00% | 66.33 ms | `s1 <---> s2` at **95.0%** from 17 qdisc drops (`s1-eth2` +10, `s2-eth2` +7) |
+| Failed | 20 / 0 | 100.00% | N/A | `s1 <---> s2` at **100%** (port drops + topology liveness) |
+| Recovery (pre-reroute) | 20 / 0 | 100.00% | N/A | `s1 <---> s2` at **100%** |
+| Recovery (post-reroute) | 50 / 50 | 0.00% | 14.29 ms | Backup `h1 -> s1 -> s3 -> s2 -> h2` after 12 rules applied |
+
+The earlier `results/real_20261105_150848/` run independently reproduced the same result: 11.00% loss, 66.27 ms RTT, and 95.0% localization from 19 qdisc drops. Both runs show that degraded localization is a direct measurement, not the 60% path-membership heuristic.
 
 ---
 
@@ -75,7 +89,7 @@ Telemetry captured during end-to-end execution of `./scripts/run_all_scenarios.s
 | **RFC 3550 Inter-Arrival Jitter**| 3.85 ms | 10.96 ms | N/A | 3.75 ms |
 | **Path Health Verdict** | `HEALTHY_PATH` | `DEGRADED_PATH` | `FAILED_PATH` | `HEALTHY_PATH` |
 | **Failure Diagnosis** | Nominal baseline | Packet loss (10.0%) & high RTT (73.32ms) | Severe packet loss (100.0%) | Nominal operation on backup route |
-| **Suspected Broken Link** | None | `s1 <---> s2` (60.0% confidence, path-membership heuristic fallback) | `s1 <---> s2` (100.0% confidence, physical link down) | None |
+| **Suspected Broken Link** | None | `s1 <---> s2` (60.0% archived; 95.0% with qdisc telemetry) | `s1 <---> s2` (100.0% confidence, physical link down) | None |
 | **Recommended Backup Route** | `h1 -> s1 -> s3 -> s2 -> h2` | `h1 -> s1 -> s3 -> s2 -> h2` | `h1 -> s1 -> s3 -> s2 -> h2` | N/A (Already active) |
 
 ### 4.1 Degraded Scenario Evidence Breakdown (Telemetry Transparency)
@@ -84,7 +98,7 @@ In the degraded scenario, link impairment was injected via Linux kernel `tc nete
 - **OVS Port Counters (`/stats/port/1`, `/stats/port/2`):** `tx_dropped: 0`, `rx_dropped: 0`. OVS handed packets to the Linux veth netdevice before kernel qdisc drops occurred.
 - **Topology Liveness (`/v1.0/topology/links`):** Link remained carrier UP (all 6 directed links active).
 - **Segment Probing:** None executed.
-- **Conclusion:** The 60.0% confidence on `s1 <---> s2` is explicitly a **path-membership heuristic fallback**, not a physical measurement.
+- **Conclusion:** The archived 60.0% confidence on `s1 <---> s2` was a **path-membership heuristic fallback** because qdisc counters were not yet consumed. The current correlator ingests `--qdisc-before/--qdisc-after` and yields **95.0% confidence from the 12-drop qdisc delta**, a direct measurement that matches the 11 lost probes.
 
 ---
 
@@ -97,6 +111,8 @@ All CLI subcommands were exercised live against the running Mininet and Ryu test
 3. **`sdnscope.py trace 10.0.0.2`:** Executed native raw socket traceroute from inside host `h1`, reaching destination `10.0.0.2` at Hop 1 (0.0% loss, 11.88 ms RTT) via ICMP Port Unreachable reply, with notice detailing controller flow table authority over L2 transparent OpenFlow hops.
 4. **`sdnscope.py watch`:** Ran live topology event watcher for 5 seconds; captured physical link severance event `[EVENT DETECTED]: ● LINK DOWN: s1 <---> s2` immediately when bounced in Mininet.
 5. **`sdnscope.py report`:** Generated valid, self-contained Markdown (`report.md`), HTML (`report.html`), and latency time-series visual charts (`rtt_timeseries.png`).
+
+**2026-11-05 re-run:** The same harness passed end-to-end on Ubuntu 26.04 with Mininet 2.3.0, OVS 3.7.1 and Ryu 4.34. `trace` reached `10.0.0.2` at Hop 1 (0.0% loss, 8.10 ms), `watch` emitted `LINK DOWN: s1 <---> s2`, and the report artifacts were regenerated. Full transcript: `TEST_EVIDENCE/live_cli_verification_20261105.txt`.
 
 ---
 
@@ -111,17 +127,17 @@ All CLI subcommands were exercised live against the running Mininet and Ryu test
 7. **Hybrid Host Discovery:** Integrated `--hosts-file` merge into `sdn_topology.py` to overcome Ryu's empty `/v1.0/topology/hosts` endpoint when operating under static flows without learning switches.
 8. **Isolated Controller Runtime:** Pinned Ryu 4.34 in a separate Python 3.9 virtual environment (`~/ryu-env`) using `uv`, leaving the project `.venv` on its own supported Python.
 9. **Traceroute Hop 1 Reachability & Programmatic Flow Installation:** Verified ICMP port unreachable returns from `h2` at Hop 1 in native raw socket, added system traceroute fallback, and set `apply_changes=True` in programmatic flow installer functions.
-10. **Telemetry Attribution Transparency:** Clarified that degraded link localization under kernel qdisc loss is a path-membership heuristic inference ($C=0.60$), not a direct physical measurement.
+10. **Kernel Qdisc Telemetry Integration:** Added `parse_qdisc_stats`, `load_qdisc_stats`, and `analyze_qdisc_deltas` to `correlate.py`, plus `--qdisc-before/--qdisc-after` on `sdnscope correlate|localize`. Degraded-link localization is now a direct measurement ($C=0.95$); the path-membership heuristic ($C=0.60$) remains only as a fallback when qdisc telemetry is unavailable.
 
 ---
 
 ## 7. Quality Assurance Gates
 
-- **Unit & Integration Tests:** 71 passed in 7.55s (74% coverage across core modules, 100% on test files).
+- **Unit & Integration Tests:** 82 passed (including qdisc parsing/attribution and end-to-end degraded correlation).
 - **Static Code Analysis:** `ruff check .` passed with 0 lint errors.
 - **Bytecode Compilation:** `python3 -m py_compile` passed with 0 syntax errors across all `.py` files.
 - **Secrets Audit:** 0 credentials or plaintext passwords present in codebase.
-- **Clean Clone Test:** Tested in `/tmp/cn_clean`; 71 passed without uncommitted dependencies.
+- **Clean Clone Test:** Tested in `/tmp/cn_clean`; the suite passes without uncommitted dependencies.
 - **Working Tree:** 0 uncommitted changes; working tree clean.
 
 ---
@@ -129,5 +145,5 @@ All CLI subcommands were exercised live against the running Mininet and Ryu test
 ## 8. Git Release Summary
 
 - **Branch:** Merged `fix/v1.1.1-validation` into `main` via merge commit.
-- **Tag:** `v1.1.1`
+- **Tag:** `v1.1.2` (qdisc telemetry + live reproducibility fixes)
 - **Total Commits Added:** Granular Conventional Commits for each fix and doc update.

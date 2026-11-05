@@ -26,9 +26,11 @@ import sys
 from correlate import (
     aggregate_suspected_links,
     analyze_port_stats_deltas,
+    analyze_qdisc_deltas,
     analyze_segment_probes,
     analyze_topology_liveness,
     correlate as run_correlation,
+    load_qdisc_stats,
 )
 from diagnostic_client import load_config as load_client_config, run_diagnostics_multi, run_diagnostics_single
 from path_analysis import print_path_table, run_path_analysis
@@ -247,6 +249,8 @@ def cmd_correlate(args):
             current_topo_file=args.current_topo,
             baseline_stats_file=args.baseline_stats,
             current_stats_file=args.current_stats,
+            baseline_qdisc_file=args.qdisc_before,
+            current_qdisc_file=args.qdisc_after,
             override_thresholds=override_thresholds
         )
     except Exception as e:
@@ -300,6 +304,18 @@ def cmd_localize(args):
         with open(c_file, "r", encoding="utf-8") as f:
             curr_stats = json.load(f)
         suspects_raw.extend(analyze_port_stats_deltas(base_stats, curr_stats, topo_data.get("links", [])))
+
+    # 1b. Kernel qdisc (tc/netem) drop deltas
+    if args.qdisc_before and args.qdisc_after:
+        b_qdisc = validate_file_exists(args.qdisc_before, "Baseline qdisc stats file")
+        c_qdisc = validate_file_exists(args.qdisc_after, "Current qdisc stats file")
+        suspects_raw.extend(
+            analyze_qdisc_deltas(
+                load_qdisc_stats(b_qdisc),
+                load_qdisc_stats(c_qdisc),
+                topo_data.get("links", []),
+            )
+        )
 
     # 2. Segment probing from diag file
     if args.diag and os.path.exists(args.diag):
@@ -472,6 +488,8 @@ def main():
     p_corr.add_argument("--current-topo", dest="current_topo", help="Current active topology JSON file (if link has failed)")
     p_corr.add_argument("--baseline-stats", dest="baseline_stats", help="Port stats before probing JSON")
     p_corr.add_argument("--current-stats", dest="current_stats", help="Port stats after probing JSON")
+    p_corr.add_argument("--qdisc-before", dest="qdisc_before", help="Raw `tc -s qdisc` capture (or JSON) before probing")
+    p_corr.add_argument("--qdisc-after", dest="qdisc_after", help="Raw `tc -s qdisc` capture (or JSON) after probing")
     p_corr.add_argument("--degraded-loss", type=float, help="Override degraded packet loss percentage threshold")
     p_corr.add_argument("--failed-loss", type=float, help="Override failed packet loss percentage threshold")
     p_corr.add_argument("--degraded-rtt", type=float, help="Override degraded mean RTT (ms) threshold")
@@ -490,10 +508,15 @@ def main():
     p_watch.set_defaults(func=cmd_watch)
 
     # 8. Subcommand: localize
-    p_loc = subparsers.add_parser("localize", help="Localize failures using port stats, segment probes, and topology liveness")
+    p_loc = subparsers.add_parser(
+        "localize",
+        help="Localize failures using port stats, kernel qdisc drops, segment probes, and topology liveness",
+    )
     p_loc.add_argument("-t", "--topo", default="topology.json", help="SDN topology JSON file (default: topology.json)")
     p_loc.add_argument("--baseline-stats", dest="baseline_stats", help="Port stats before probing JSON")
     p_loc.add_argument("--current-stats", dest="current_stats", help="Port stats after probing JSON")
+    p_loc.add_argument("--qdisc-before", dest="qdisc_before", help="Raw `tc -s qdisc` capture (or JSON) before probing")
+    p_loc.add_argument("--qdisc-after", dest="qdisc_after", help="Raw `tc -s qdisc` capture (or JSON) after probing")
     p_loc.add_argument("-d", "--diag", help="Diagnostic results JSON with segment metrics")
     p_loc.add_argument("--path", help="Active forwarding path (e.g. h1->s1->s2->h2)")
     p_loc.add_argument("--expected-links", help="Comma-separated expected links (e.g. s1:s2,s2:h2)")

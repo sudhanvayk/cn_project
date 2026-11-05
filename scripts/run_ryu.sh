@@ -6,14 +6,26 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 
+# Resolve the invoking user's home even when this script runs under sudo
+# (sudo sets HOME=/root by default, hiding ~/ryu-env).
+RYU_HOME="$HOME"
+if [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ]; then
+    _sudo_home="$(getent passwd "$SUDO_USER" | cut -d: -f6)"
+    if [ -n "$_sudo_home" ]; then
+        RYU_HOME="$_sudo_home"
+    fi
+fi
+
 RYU_BIN="${RYU_BIN:-}"
 if [ -z "$RYU_BIN" ]; then
-    if [ -x "$HOME/ryu-env/bin/ryu-manager" ]; then
+    if [ -x "$RYU_HOME/ryu-env/bin/ryu-manager" ]; then
+        RYU_BIN="$RYU_HOME/ryu-env/bin/ryu-manager"
+    elif [ -x "$HOME/ryu-env/bin/ryu-manager" ]; then
         RYU_BIN="$HOME/ryu-env/bin/ryu-manager"
-    elif [ -x "/home/sudh/ryu-env/bin/ryu-manager" ]; then
-        RYU_BIN="/home/sudh/ryu-env/bin/ryu-manager"
+    elif command -v ryu-manager >/dev/null 2>&1; then
+        RYU_BIN="$(command -v ryu-manager)"
     else
-        RYU_BIN="/home/sudh/ryu-env/bin/ryu-manager"
+        RYU_BIN="$RYU_HOME/ryu-env/bin/ryu-manager"
     fi
 fi
 PID_FILE="${RYU_PID_FILE:-/tmp/ryu_sdnscope.pid}"
@@ -22,6 +34,7 @@ REST_URL="${RYU_REST_URL:-http://127.0.0.1:8080}"
 
 if [ ! -x "$RYU_BIN" ]; then
     echo "[ERROR] ryu-manager not found at: $RYU_BIN" >&2
+    echo "[HINT]  Create ~/ryu-env with Python 3.9 (see SETUP.md) or export RYU_BIN=/path/to/ryu-manager." >&2
     exit 1
 fi
 

@@ -1,0 +1,74 @@
+{
+  "timestamp": "2026-11-05T09:39:03Z",
+  "path_status": "HEALTHY_PATH",
+  "source_node": "h1",
+  "destination_node": "h2",
+  "destination_ip": "10.0.0.2",
+  "path_source": "flow_table",
+  "active_path": {
+    "path": [
+      "h1",
+      "s1",
+      "s2",
+      "h2"
+    ],
+    "path_str": "h1 -> s1 -> s2 -> h2",
+    "hop_count": 3,
+    "source": "flow_table"
+  },
+  "failed_path_reason": "None (Path is healthy and operating within nominal thresholds)",
+  "packet_loss_percentage": 0.0,
+  "mean_rtt": 9.067,
+  "qdisc_drop_delta": null,
+  "suspected_links": [],
+  "ranked_backup_paths": [
+    {
+      "path": [
+        "h1",
+        "s1",
+        "s3",
+        "s2",
+        "h2"
+      ],
+      "path_str": "h1 -> s1 -> s3 -> s2 -> h2",
+      "hop_count": 4,
+      "extra_hops": 1,
+      "status": "VIABLE_BACKUP",
+      "is_viable": true,
+      "rank": 1
+    }
+  ],
+  "recommended_backup_path": {
+    "path": [
+      "h1",
+      "s1",
+      "s3",
+      "s2",
+      "h2"
+    ],
+    "path_str": "h1 -> s1 -> s3 -> s2 -> h2",
+    "hop_count": 4,
+    "extra_hops": 1,
+    "status": "VIABLE_BACKUP",
+    "is_viable": true,
+    "rank": 1
+  },
+  "detailed_metrics": {
+    "probes_sent": 50,
+    "probes_received": 50,
+    "probes_lost": 0,
+    "packet_loss_percentage": 0.0,
+    "min_rtt_ms": 8.69,
+    "max_rtt_ms": 10.594,
+    "mean_rtt_ms": 9.067,
+    "median_rtt_ms": 8.944,
+    "stddev_rtt_ms": 0.364,
+    "rfc3550_jitter_ms": 0.185,
+    "p95_rtt_ms": 9.769
+  },
+  "thresholds": {
+    "degraded_rtt_ms": 50.0,
+    "degraded_packet_loss_percent": 0.0,
+    "failed_packet_loss_percent": 50.0
+  }
+}

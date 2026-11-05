@@ -1,0 +1,101 @@
+
+======================================================================
+=== COMMAND: sdnscope.py topo ===
+======================================================================
+[INFO] 22:20:03 - Connecting to Ryu REST API at http://127.0.0.1:8080...
+
+====================================================================
+                 SDN TOPOLOGY DISCOVERY REPORT
+====================================================================
+ Controller Type:   RYU
+ Controller URL:    http://127.0.0.1:8080
+ Discovered At:     2026-11-05T16:50:03Z
+ Total Nodes:       5
+ Total Links:       5
+--------------------------------------------------------------------
+
+[Discovered Nodes]:
+Node ID      Type         IP / DPID                 Connected To   
+--------------------------------------------------------------------
+s1           switch       0000000000000001          -              
+s3           switch       0000000000000003          -              
+s2           switch       0000000000000002          -              
+h1           host         10.0.0.1                  s1             
+h2           host         10.0.0.2                  s2             
+
+[Discovered Links]:
+Source          <--->    Destination     Link Type           
+--------------------------------------------------------------------
+s3              <--->    s1              switch-to-switch    
+s2              <--->    s1              switch-to-switch    
+s2              <--->    s3              switch-to-switch    
+h1              <--->    s1              host-to-switch      
+h2              <--->    s2              host-to-switch      
+====================================================================
+
+[INFO] Topology written to: /home/sudh/cn_project-main/results/cli_verification/topology.json
+
+======================================================================
+=== COMMAND: sdnscope.py paths -s h1 -d h2 ===
+======================================================================
+======================================================================
+               SDN PATH DISCOVERY AND COMPARISON REPORT
+======================================================================
+ Source:            h1
+ Destination:       h2
+ Total Paths Found: 2
+----------------------------------------------------------------------
+Rank   Role                   Hops     Extra    Path Route
+----------------------------------------------------------------------
+1      SELECTED_SHORTEST      3        0        h1 -> s1 -> s2 -> h2
+2      ALTERNATIVE            4        +1       h1 -> s1 -> s3 -> s2 -> h2
+======================================================================
+
+[INFO] Path comparison written to: /home/sudh/cn_project-main/results/cli_verification/paths.json
+
+======================================================================
+=== COMMAND: sdnscope.py trace 10.0.0.2 (from h1) ===
+======================================================================
+========================================================================
+              NETWORK PATH ANALYSIS REPORT (IP Layer)
+========================================================================
+ Target Host:       10.0.0.2
+ Tracing Method:    native_raw_socket
+ Total Hops Found:  1
+------------------------------------------------------------------------
+Hop   IP Address             Loss %     Avg RTT      Status      
+------------------------------------------------------------------------
+1     10.0.0.2               0.0%       8.10 ms      REACHABLE   
+------------------------------------------------------------------------
+[SDN PATH TRANSPARENCY NOTICE]:
+In standard OpenFlow/Mininet networks, switches forward packets at Layer 2 without decrementing the IPv4 TTL field (unless explicit dec_ttl actions exist). Consequently, intermediate OpenFlow switches are transparent to standard traceroute; the destination host answers directly at Hop 1 via ICMP Port Unreachable. Authoritative multi-switch forwarding paths are determined by querying the SDN controller flow tables (see flow_inspector.py).
+========================================================================
+
+
+======================================================================
+=== COMMAND: sdnscope.py watch (with live link bounce) ===
+======================================================================
+====================================================================
+       SDN Topology Live Watcher Running (Interval: 1s)
+====================================================================
+ Press Ctrl+C to terminate watcher.
+--------------------------------------------------------------------
+[INFO] 22:20:04 - Connecting to Ryu REST API at http://127.0.0.1:8080...
+[INFO] 22:20:04 - Initial baseline: 3 nodes, 3 links.
+[INFO] 22:20:05 - Connecting to Ryu REST API at http://127.0.0.1:8080...
+[INFO] 22:20:06 - Connecting to Ryu REST API at http://127.0.0.1:8080...
+
+[EVENT DETECTED @ 22:20:06]:
+  ● LINK DOWN: s1 <---> s2
+[INFO] 22:20:07 - Connecting to Ryu REST API at http://127.0.0.1:8080...
+[INFO] 22:20:08 - Connecting to Ryu REST API at http://127.0.0.1:8080...
+
+[INFO] Topology watcher stopped by user.
+
+
+======================================================================
+=== COMMAND: sdnscope.py report ===
+======================================================================
+[SUCCESS] Markdown report generated: /home/sudh/cn_project-main/results/cli_verification/test_report.md
+[SUCCESS] HTML report generated:     /home/sudh/cn_project-main/results/cli_verification/test_report.html
+[SUCCESS] Latency chart saved:       /home/sudh/cn_project-main/results/cli_verification/rtt_timeseries.png

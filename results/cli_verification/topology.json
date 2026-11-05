@@ -1,7 +1,7 @@
 {
   "controller_type": "ryu",
   "controller_url": "http://127.0.0.1:8080",
-  "discovered_at": "2026-10-23T14:20:44Z",
+  "discovered_at": "2026-11-05T16:50:03Z",
   "nodes": [
     {
       "id": "s1",
@@ -11,19 +11,19 @@
         {
           "dpid": "0000000000000001",
           "port_no": 1,
-          "hw_addr": "9e:64:69:46:f5:43",
+          "hw_addr": "a6:94:94:35:3c:b3",
           "name": "s1-eth1"
         },
         {
           "dpid": "0000000000000001",
           "port_no": 2,
-          "hw_addr": "b6:f8:3c:bb:97:e2",
+          "hw_addr": "3a:d1:60:17:4e:11",
           "name": "s1-eth2"
         },
         {
           "dpid": "0000000000000001",
           "port_no": 3,
-          "hw_addr": "ee:4f:f3:1b:ca:bf",
+          "hw_addr": "66:b7:9f:a0:1e:42",
           "name": "s1-eth3"
         }
       ]
@@ -36,13 +36,13 @@
         {
           "dpid": "0000000000000003",
           "port_no": 1,
-          "hw_addr": "3e:ca:f2:93:9e:3d",
+          "hw_addr": "f2:b0:c0:26:56:dd",
           "name": "s3-eth1"
         },
         {
           "dpid": "0000000000000003",
           "port_no": 2,
-          "hw_addr": "06:0c:23:be:a9:e9",
+          "hw_addr": "6e:20:64:f5:4e:c1",
           "name": "s3-eth2"
         }
       ]
@@ -55,19 +55,19 @@
         {
           "dpid": "0000000000000002",
           "port_no": 1,
-          "hw_addr": "06:67:1f:41:93:59",
+          "hw_addr": "9e:d2:38:98:8d:34",
           "name": "s2-eth1"
         },
         {
           "dpid": "0000000000000002",
           "port_no": 2,
-          "hw_addr": "3e:af:f9:2d:be:72",
+          "hw_addr": "6a:ea:b5:d7:88:00",
           "name": "s2-eth2"
         },
         {
           "dpid": "0000000000000002",
           "port_no": 3,
-          "hw_addr": "1e:97:04:49:63:eb",
+          "hw_addr": "8a:6a:f1:58:ec:0e",
           "name": "s2-eth3"
         }
       ]

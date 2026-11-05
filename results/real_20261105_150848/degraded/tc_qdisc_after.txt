@@ -1,0 +1,9 @@
+s1-eth2:
+qdisc netem 10: root refcnt 17 limit 1000 delay 30ms loss 5% seed 5538494855837796152
+ Sent 25891 bytes 144 pkt (dropped 10, overlimits 0 requeues 0) 
+ backlog 0b 0p requeues 0
+
+s2-eth2:
+qdisc netem 10: root refcnt 17 limit 1000 delay 30ms loss 5% seed 10672593996990183826
+ Sent 31791 bytes 137 pkt (dropped 9, overlimits 0 requeues 0) 
+ backlog 0b 0p requeues 0

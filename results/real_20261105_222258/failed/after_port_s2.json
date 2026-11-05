@@ -1,0 +1,72 @@
+{
+  "2": [
+    {
+      "rx_packets": 0,
+      "tx_packets": 0,
+      "rx_bytes": 0,
+      "tx_bytes": 0,
+      "rx_dropped": 0,
+      "tx_dropped": 0,
+      "rx_errors": 0,
+      "tx_errors": 0,
+      "rx_frame_err": 0,
+      "rx_over_err": 0,
+      "rx_crc_err": 0,
+      "collisions": 0,
+      "duration_sec": 16,
+      "duration_nsec": 315000000,
+      "port_no": "LOCAL"
+    },
+    {
+      "rx_packets": 6,
+      "tx_packets": 50,
+      "rx_bytes": 580,
+      "tx_bytes": 11352,
+      "rx_dropped": 0,
+      "tx_dropped": 0,
+      "rx_errors": 0,
+      "tx_errors": 0,
+      "rx_frame_err": 0,
+      "rx_over_err": 0,
+      "rx_crc_err": 0,
+      "collisions": 0,
+      "duration_sec": 16,
+      "duration_nsec": 319000000,
+      "port_no": 1
+    },
+    {
+      "rx_packets": 25,
+      "tx_packets": 24,
+      "rx_bytes": 4550,
+      "tx_bytes": 5437,
+      "rx_dropped": 0,
+      "tx_dropped": 2,
+      "rx_errors": 0,
+      "tx_errors": 0,
+      "rx_frame_err": 0,
+      "rx_over_err": 0,
+      "rx_crc_err": 0,
+      "collisions": 0,
+      "duration_sec": 16,
+      "duration_nsec": 319000000,
+      "port_no": 2
+    },
+    {
+      "rx_packets": 46,
+      "tx_packets": 46,
+      "rx_bytes": 11111,
+      "tx_bytes": 10968,
+      "rx_dropped": 0,
+      "tx_dropped": 0,
+      "rx_errors": 0,
+      "tx_errors": 0,
+      "rx_frame_err": 0,
+      "rx_over_err": 0,
+      "rx_crc_err": 0,
+      "collisions": 0,
+      "duration_sec": 16,
+      "duration_nsec": 319000000,
+      "port_no": 3
+    }
+  ]
+}

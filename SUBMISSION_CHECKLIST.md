@@ -15,7 +15,7 @@ repository root.
 |---|---|---|
 | Dependency install | `make install` | Creates `.venv/`, installs runtime + dev dependencies |
 | Static analysis | `make lint` | `All checks passed!` (ruff, exit code 0) |
-| Test suite | `make test` | `71 passed`, 64% total coverage |
+| Test suite | `make test` | `82 passed`, 68% total coverage |
 | Localhost demo | `make demo` | `[SUCCESS] Full local demonstration completed successfully!` |
 | Continuous integration | GitHub Actions | `CI` workflow green on the submitted branch |
 
@@ -36,13 +36,14 @@ Written to `results/demo_localhost/`:
 
 ## 4. Expected scenario results
 
-Full four-scenario suite under `results/real_20261025_170036/` (requires a live
-Mininet + Ryu testbed; these artifacts are committed as evidence).
+Latest full four-scenario suite: `results/real_20261105_222258/` (`results/latest`)
+on Ubuntu 26.04, Mininet 2.3.0, Open vSwitch 3.7.1 and Ryu 4.34. Degraded
+localization is **95.0% on `s1 <---> s2` from a 17-drop kernel qdisc delta**.
 
 | Scenario | Expected verdict | Evidence file |
 |---|---|---|
 | Healthy | `HEALTHY_PATH` — no degradation, no rerouting needed | `healthy/report.md` |
-| Degraded | `DEGRADED_PATH` — elevated loss/latency detected on the active path | `degraded/report.md` |
+| Degraded | `DEGRADED_PATH` — elevated loss/latency detected; `s1 <---> s2` localized at 95% from kernel qdisc drop deltas (60% heuristic only without qdisc telemetry) | `degraded/report.md` |
 | Failed | `FAILED_PATH` — link failure localised, backup paths ranked | `failed/report.md` |
 | Recovery | `FAILED_PATH` before reroute, `HEALTHY_PATH` after | `recovery/report.md`, `recovery/report_recovered.md` |
 
@@ -50,11 +51,13 @@ Mininet + Ryu testbed; these artifacts are committed as evidence).
 
 These directories are the evidence of record:
 
-- `results/real_20261025_170036/` — most recent full four-scenario suite on a live Mininet + Ryu testbed (`results/latest` points here); source of the verdicts in section 4
-- `results/real_20261023_190236/` — earlier full four-scenario suite; the run whose telemetry is analysed in `docs/EVIDENCE.md` and `FINAL_SUMMARY.md`
+- `results/real_20261105_222258/` — **latest** full four-scenario suite on a live Mininet + Ryu testbed (`results/latest` points here); 8.00% degraded loss, 66.33 ms RTT, and 95.0% qdisc-based localization of `s1 <---> s2` from 17 kernel drops
+- `results/real_20261105_150848/` — previous live four-scenario suite; independently validates the same 95.0% qdisc localization (19 drops, 11.00% loss)
+- `results/real_20261023_190236/` — historical four-scenario suite; the run whose telemetry is analysed in `docs/EVIDENCE.md` and `FINAL_SUMMARY.md`
 - `results/demo_localhost/` — reproducible localhost demonstration
-- `results/cli_verification/` — CLI verification transcript
+- `results/cli_verification/` — successful 2026-11-05 live CLI verification transcript (topo, paths, trace, watch link bounce, report); copy archived as `TEST_EVIDENCE/live_cli_verification_20261105.txt`
 - `docs/EVIDENCE.md` — full transcripts, comparative tables, verification logs
 
-Both timestamped runs are part of the graded submission and are retained
-deliberately.
+The two 2026-11-05 runs are retained deliberately: the latest run is the
+primary evidence, and the earlier run is an independent repeat of the same
+qdisc-based localization.

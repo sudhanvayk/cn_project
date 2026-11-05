@@ -1,5 +1,7 @@
 # SDNScope Tester Report
 
+> **Historical report (2026-11-02 environment).** Ryu and noninteractive sudo were unavailable when this report was written. The current submission host has since completed live Mininet + Ryu validation: see `results/real_20261105_222258/`, `results/real_20261105_150848/`, and `docs/EVIDENCE.md` §4.3. The current suite is **82 tests passed** with 68% coverage.
+
 ## Objective
 
 Validate SDNScope's automated tests, localhost demonstration, UDP measurements, topology/path analysis, failure handling, reroute generation, reports, and cleanup. Record only results executed in this checkout and identify reproducible defects.

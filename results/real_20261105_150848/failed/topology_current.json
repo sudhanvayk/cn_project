@@ -1,0 +1,126 @@
+{
+  "controller_type": "ryu",
+  "controller_url": "http://127.0.0.1:8080",
+  "discovered_at": "2026-11-05T09:40:15Z",
+  "nodes": [
+    {
+      "id": "s1",
+      "type": "switch",
+      "dpid": "0000000000000001",
+      "ports": [
+        {
+          "dpid": "0000000000000001",
+          "port_no": 1,
+          "hw_addr": "0a:3a:1b:7c:16:71",
+          "name": "s1-eth1"
+        },
+        {
+          "dpid": "0000000000000001",
+          "port_no": 2,
+          "hw_addr": "32:5a:15:bc:2b:af",
+          "name": "s1-eth2"
+        },
+        {
+          "dpid": "0000000000000001",
+          "port_no": 3,
+          "hw_addr": "26:d8:1b:94:b6:5d",
+          "name": "s1-eth3"
+        }
+      ]
+    },
+    {
+      "id": "s3",
+      "type": "switch",
+      "dpid": "0000000000000003",
+      "ports": [
+        {
+          "dpid": "0000000000000003",
+          "port_no": 1,
+          "hw_addr": "d6:84:2e:7a:81:24",
+          "name": "s3-eth1"
+        },
+        {
+          "dpid": "0000000000000003",
+          "port_no": 2,
+          "hw_addr": "ce:77:27:0d:6a:b0",
+          "name": "s3-eth2"
+        }
+      ]
+    },
+    {
+      "id": "s2",
+      "type": "switch",
+      "dpid": "0000000000000002",
+      "ports": [
+        {
+          "dpid": "0000000000000002",
+          "port_no": 1,
+          "hw_addr": "f2:fc:67:35:c3:08",
+          "name": "s2-eth1"
+        },
+        {
+          "dpid": "0000000000000002",
+          "port_no": 2,
+          "hw_addr": "ce:ad:3b:e9:5f:e7",
+          "name": "s2-eth2"
+        },
+        {
+          "dpid": "0000000000000002",
+          "port_no": 3,
+          "hw_addr": "2a:89:db:08:98:16",
+          "name": "s2-eth3"
+        }
+      ]
+    },
+    {
+      "id": "h1",
+      "type": "host",
+      "ip": "10.0.0.1",
+      "mac": "00:00:00:00:00:01",
+      "connected_to": "s1",
+      "switch_port": 1,
+      "host_source": "hosts_file"
+    },
+    {
+      "id": "h2",
+      "type": "host",
+      "ip": "10.0.0.2",
+      "mac": "00:00:00:00:00:02",
+      "connected_to": "s2",
+      "switch_port": 1,
+      "host_source": "hosts_file"
+    }
+  ],
+  "links": [
+    {
+      "source": "s3",
+      "destination": "s1",
+      "src_port": 1,
+      "dst_port": 3,
+      "type": "switch-to-switch"
+    },
+    {
+      "source": "s2",
+      "destination": "s3",
+      "src_port": 3,
+      "dst_port": 2,
+      "type": "switch-to-switch"
+    },
+    {
+      "source": "h1",
+      "destination": "s1",
+      "src_port": null,
+      "dst_port": 1,
+      "type": "host-to-switch",
+      "host_source": "hosts_file"
+    },
+    {
+      "source": "h2",
+      "destination": "s2",
+      "src_port": null,
+      "dst_port": 1,
+      "type": "host-to-switch",
+      "host_source": "hosts_file"
+    }
+  ]
+}

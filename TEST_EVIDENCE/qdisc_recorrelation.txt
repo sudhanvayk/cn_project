@@ -1,0 +1,31 @@
+[WARNING] Failed to fetch flow rules from http://127.0.0.1:8080/stats/flow/1: HTTPConnectionPool(host='127.0.0.1', port=8080): Max retries exceeded with url: /stats/flow/1 (Caused by NewConnectionError("HTTPConnection(host='127.0.0.1', port=8080): Failed to establish a new connection: [Errno 111] Connection refused"))
+
+==========================================================================
+ [▲ DEGRADED]   SDN NETWORK PATH DIAGNOSTIC & CORRELATION REPORT
+==========================================================================
+ PATH STATUS:             DEGRADED_PATH
+ FAILED-PATH REASON:      Path degradation detected: packet loss of 10.00% detected and mean RTT (73.32 ms) exceeds latency limit (50.00 ms).
+--------------------------------------------------------------------------
+ Source Node:             h1
+ Destination Node:        h2 (IP: 10.0.0.2)
+ Packet Loss:             10.00%
+ Mean RTT:                73.32 ms
+ Active Path:             h1 -> s1 -> s2 -> h2 (3 hops)
+ Path Source:             ASSUMED_SHORTEST
+--------------------------------------------------------------------------
+ SUSPECTED FAILED / DEGRADED LINKS (Localization Evidence):
+ Rank   Suspected Link           Confidence     Evidence
+ ------------------------------------------------------------------------
+ 1      s1 <---> s2              95.0%          Kernel qdisc drop counters incremented: 13 dropped packet(s) (s1-eth2 +5, s2-eth2 +8) on link s1 <---> s2
+--------------------------------------------------------------------------
+ RANKED BACKUP PATHS (Pruned of Suspected Links):
+ Rank   Status                    Hops     Extra    Route
+ ------------------------------------------------------------------------
+ 1      VIABLE_BACKUP             4        +1       h1 -> s1 -> s3 -> s2 -> h2
+--------------------------------------------------------------------------
+ [ACTION RECOMMENDED] Failover to Viable Backup Route:
+ -> Best Backup:  h1 -> s1 -> s3 -> s2 -> h2 (4 hops, +1 extra)
+ -> Next Step:    Deploy backup flow rules via reroute_helper.py or SDN controller.
+==========================================================================
+
+[INFO] Final correlation report saved to: TEST_EVIDENCE/qdisc_recorrelation.json

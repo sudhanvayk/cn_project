@@ -1,0 +1,23 @@
+========================================================================
+           SDN AUTOMATED BACKUP PATH REROUTING ASSISTANT
+========================================================================
+ Target Controller: http://127.0.0.1:8080/stats/flowentry/add
+ Execution Mode:    [DRY-RUN] (Simulation Only)
+ Total Rules:       12
+------------------------------------------------------------------------
+Rule #1: Switch DPID 1 | Match: {'ipv4_dst': '10.0.0.2', 'eth_type': 2048} | Action: OUTPUT port 3
+Rule #2: Switch DPID 1 | Match: {'arp_tpa': '10.0.0.2', 'eth_type': 2054} | Action: OUTPUT port 3
+Rule #3: Switch DPID 3 | Match: {'ipv4_dst': '10.0.0.2', 'eth_type': 2048} | Action: OUTPUT port 2
+Rule #4: Switch DPID 3 | Match: {'arp_tpa': '10.0.0.2', 'eth_type': 2054} | Action: OUTPUT port 2
+Rule #5: Switch DPID 2 | Match: {'ipv4_dst': '10.0.0.2', 'eth_type': 2048} | Action: OUTPUT port 1
+Rule #6: Switch DPID 2 | Match: {'arp_tpa': '10.0.0.2', 'eth_type': 2054} | Action: OUTPUT port 1
+Rule #7: Switch DPID 2 | Match: {'ipv4_dst': '10.0.0.1', 'eth_type': 2048} | Action: OUTPUT port 3
+Rule #8: Switch DPID 2 | Match: {'arp_tpa': '10.0.0.1', 'eth_type': 2054} | Action: OUTPUT port 3
+Rule #9: Switch DPID 3 | Match: {'ipv4_dst': '10.0.0.1', 'eth_type': 2048} | Action: OUTPUT port 1
+Rule #10: Switch DPID 3 | Match: {'arp_tpa': '10.0.0.1', 'eth_type': 2054} | Action: OUTPUT port 1
+Rule #11: Switch DPID 1 | Match: {'ipv4_dst': '10.0.0.1', 'eth_type': 2048} | Action: OUTPUT port 1
+Rule #12: Switch DPID 1 | Match: {'arp_tpa': '10.0.0.1', 'eth_type': 2054} | Action: OUTPUT port 1
+------------------------------------------------------------------------
+[NOTE] Safe dry-run complete. No flow rules were modified on the controller.
+To push these flow modifications to the live controller, append the --apply flag.
+========================================================================

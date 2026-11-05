@@ -19,8 +19,11 @@ echo " Run Directory: $RUN_DIR"
 echo " Started At:    $(date)"
 echo "----------------------------------------------------------------------"
 
-# Ensure pre-flight passes
-sudo -n true || { echo "[ERROR] Sudo access failed"; exit 1; }
+# Ensure sudo credentials are available (prompt once if needed)
+if ! sudo -n true 2>/dev/null; then
+    echo "[INFO] Requesting sudo credentials for Mininet scenarios..."
+    sudo -v || { echo "[ERROR] Sudo authentication failed"; exit 1; }
+fi
 
 # Record environment metadata to env.txt
 ENV_TXT="$RUN_DIR/env.txt"
@@ -72,8 +75,10 @@ for sc in "${SCENARIOS[@]}"; do
     run_scenario "$sc"
 done
 
-# Fix ownership so non-root user owns all results
-sudo chown -R sudh:sudh "$RUN_DIR" "$ROOT_DIR" 2>/dev/null || true
+# Fix ownership so the invoking (non-root) user owns all results
+OWNER="${SUDO_USER:-$(id -un)}"
+OWNER_GROUP="$(id -gn "$OWNER" 2>/dev/null || id -gn)"
+sudo chown -R "$OWNER:$OWNER_GROUP" "$RUN_DIR" "$ROOT_DIR" 2>/dev/null || true
 
 # Check that core artifacts exist for all scenarios
 GATES_PASSED=1

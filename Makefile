@@ -24,7 +24,15 @@ $(STAMP): $(REQ) $(REQ_DEV) | $(VENV)
 	@touch $(STAMP)
 
 $(VENV):
-	$(PYTHON) -m venv $(VENV)
+	@echo "[INFO] Creating virtual environment in $(VENV)..."
+	@if $(PYTHON) -m venv $(VENV); then \
+		echo "[INFO] venv created."; \
+	else \
+		echo "[WARN] ensurepip unavailable; creating venv without pip and bootstrapping from system pip."; \
+		rm -rf $(VENV); \
+		$(PYTHON) -m venv --without-pip $(VENV); \
+		$(PYTHON) -m pip --python $(VENV)/bin/python install --upgrade pip; \
+	fi
 
 .PHONY: venv
 venv: $(VENV) ## Create the project virtualenv only

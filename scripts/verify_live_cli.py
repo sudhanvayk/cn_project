@@ -30,9 +30,38 @@ def log(msg):
     print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {msg}", flush=True)
 
 
+RYU_LOG = os.environ.get("RYU_LOG_FILE", "/tmp/ryu_sdnscope.log")
+
+
 def run_cmd(cmd):
     p = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     return p.stdout.strip()
+
+
+def dump_log_tail(path, lines=40):
+    """Print the last few lines of a log file to aid post-mortem debugging."""
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            tail = f.readlines()[-lines:]
+    except OSError:
+        return
+    if tail:
+        log(f"Last {len(tail)} lines of {path}:")
+        print("".join(tail), flush=True)
+
+
+def run_cmd_checked(cmd, label, log_path=None):
+    """Run a command, abort on nonzero exit, and surface its log on failure."""
+    p = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    output = p.stdout.strip()
+    if p.returncode != 0:
+        log(f"[ERROR] {label} failed (exit {p.returncode}).")
+        if output:
+            print(output, flush=True)
+        if log_path:
+            dump_log_tail(log_path)
+        raise SystemExit(1)
+    return output
 
 
 def main():
@@ -51,8 +80,14 @@ def main():
     # 1. Start Ryu
     log("Ensuring clean state & starting Ryu...")
     run_cmd(f"{PROJECT_ROOT}/scripts/run_ryu.sh stop || true")
-    run_cmd("sudo mn -c 2>&1")
-    run_cmd(f"{PROJECT_ROOT}/scripts/run_ryu.sh start")
+    run_cmd("mn -c >/dev/null 2>&1 || true")
+    ryu_startup = run_cmd_checked(
+        f"{PROJECT_ROOT}/scripts/run_ryu.sh start",
+        "Ryu controller startup",
+        log_path=RYU_LOG,
+    )
+    log(f"Ryu startup: {ryu_startup}")
+    time.sleep(1.0)  # let the OpenFlow listener settle before Mininet connects
 
     hosts_file = os.path.join(out_dir, "hosts.json")
     hosts_data = [
@@ -84,29 +119,48 @@ def main():
         h2.setARP("10.0.0.1", "00:00:00:00:00:01")
 
         log("Waiting for switches to connect to Ryu...")
-        wait_for_switches("http://127.0.0.1:8080", expected_count=3, timeout=30.0)
+        if not wait_for_switches("http://127.0.0.1:8080", expected_count=3, timeout=30.0):
+            log("[ERROR] Not all 3 switches connected to Ryu within 30s. Aborting.")
+            dump_log_tail(RYU_LOG)
+            raise SystemExit(1)
 
         log("Installing static primary flows...")
-        install_primary_flows("http://127.0.0.1:8080", apply_changes=True)
+        flow_result = install_primary_flows("http://127.0.0.1:8080", apply_changes=True)
+        failed_flows = [r for r in flow_result.get("results", []) if r.get("status") != "SUCCESS"]
+        if failed_flows:
+            log(f"[ERROR] {len(failed_flows)} flow rule(s) failed to install. Aborting.")
+            print(json.dumps(failed_flows, indent=2), flush=True)
+            raise SystemExit(1)
         time.sleep(1.0)
 
         # Baseline ping
         ping_out = h1.cmd("ping -c 2 10.0.0.2")
         log(f"Ping sanity: {ping_out.strip()}")
+        if "100% packet loss" in ping_out:
+            log("[ERROR] Baseline ping to h2 failed (100% loss). Aborting.")
+            dump_log_tail(RYU_LOG)
+            raise SystemExit(1)
 
         py_bin = os.path.join(PROJECT_ROOT, ".venv", "bin", "python")
         sdnscope_bin = os.path.join(PROJECT_ROOT, "sdnscope.py")
         topo_out_path = os.path.join(out_dir, "topology.json")
         paths_out_path = os.path.join(out_dir, "paths.json")
 
+        # Remove stale artifacts so a failed CLI run can never be mistaken for fresh output
+        for stale in (topo_out_path, paths_out_path):
+            try:
+                os.remove(stale)
+            except FileNotFoundError:
+                pass
+
         # 1. Test sdnscope.py topo
         cmd_topo = f"{py_bin} {sdnscope_bin} topo -c ryu -i 127.0.0.1 -p 8080 --hosts-file {hosts_file} -o {topo_out_path}"
-        topo_output = run_cmd(cmd_topo)
+        topo_output = run_cmd_checked(cmd_topo, "sdnscope.py topo")
         record("COMMAND: sdnscope.py topo", topo_output)
 
         # 2. Test sdnscope.py paths
         cmd_paths = f"{py_bin} {sdnscope_bin} paths -s h1 -d h2 -f {topo_out_path} -o {paths_out_path}"
-        paths_output = run_cmd(cmd_paths)
+        paths_output = run_cmd_checked(cmd_paths, "sdnscope.py paths")
         record("COMMAND: sdnscope.py paths -s h1 -d h2", paths_output)
 
         # 3. Test sdnscope.py trace
@@ -145,7 +199,7 @@ def main():
         md_test = os.path.join(out_dir, "test_report.md")
         html_test = os.path.join(out_dir, "test_report.html")
         cmd_report = f"{py_bin} {sdnscope_bin} report -r {latest_report} -d {latest_diag} -m {md_test} -H {html_test} --dir {out_dir}"
-        report_output = run_cmd(cmd_report)
+        report_output = run_cmd_checked(cmd_report, "sdnscope.py report")
         record("COMMAND: sdnscope.py report", report_output)
 
     finally:
@@ -156,9 +210,14 @@ def main():
             except Exception as e:
                 log(f"Error stopping Mininet: {e}")
         run_cmd(f"{PROJECT_ROOT}/scripts/run_ryu.sh stop || true")
-        run_cmd("sudo mn -c 2>&1")
+        run_cmd("mn -c >/dev/null 2>&1 || true")
         cli_log.close()
-        run_cmd(f"sudo chown -R sudh:sudh {PROJECT_ROOT}/results")
+        if os.geteuid() == 0:
+            try:
+                st = os.stat(PROJECT_ROOT)
+                run_cmd(f"chown -R {st.st_uid}:{st.st_gid} {os.path.join(PROJECT_ROOT, 'results')}")
+            except OSError as e:
+                log(f"[WARN] Could not restore results ownership: {e}")
         log(f"Verification complete. Artifacts in: {out_dir}")
 
 

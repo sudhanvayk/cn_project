@@ -22,7 +22,7 @@ except ImportError as exc:
     print(f"[FATAL] Mininet not found: {exc}", file=sys.stderr)
     sys.exit(1)
 
-PROJECT_DIR = "/home/sudh/Documents/cn_project"
+PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FIXTURES_DIR = os.path.join(PROJECT_DIR, "tests/fixtures/real_diamond")
 REST_URL = "http://127.0.0.1:8080"
 OF_PORT = 6653

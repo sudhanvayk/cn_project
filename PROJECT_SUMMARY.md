@@ -95,7 +95,7 @@ All functionality is accessible via 10 subcommands:
 | `paths` | Find and rank all loop-free simple paths (BFS) | `-s h1 -d h2 -f topology.json` |
 | `correlate` | Correlate telemetry, localize faults, rank backups | `-d diag.json -t topo.json -s h1 -e h2 --controller <url>` |
 | `watch` | Monitor live SDN topology changes in real time | `-w 5 -c ryu -i 127.0.0.1 -p 8080` |
-| `localize` | Run dedicated 3-tier failure localization | `-t topo.json --baseline-stats b.json --current-stats c.json` |
+| `localize` | Run dedicated multi-source failure localization | `-t topo.json --baseline-stats b.json --current-stats c.json --qdisc-before qb.txt --qdisc-after qa.txt` |
 | `reroute` | Install OpenFlow backup flow modifications | `-r report.json -t topo.json -c <url> [--apply]` |
 | `report` | Generate Markdown, HTML, and chart reports | `-r report.json -d diag.json -m report.md -H report.html` |
 
@@ -103,7 +103,7 @@ All functionality is accessible via 10 subcommands:
 
 ## 5. Multi-Source Failure Localization Methodology
 
-`correlate.py` implements a 3-tier evidence aggregation model:
+`correlate.py` implements a 4-source evidence aggregation model:
 
 ### Evidence Source A: Switch Port Statistics Deltas
 - Polls switch port counters (`/stats/port/<dpid>`) before and after probing
@@ -117,6 +117,11 @@ All functionality is accessible via 10 subcommands:
 ### Evidence Source C: Topology Liveness Diffing
 - Compares controller's active link inventory against baseline topology
 - Links absent from active topology are flagged as severed (confidence = 1.0)
+
+### Evidence Source D: Kernel Qdisc Drop Deltas
+- Parses `tc -s qdisc show dev <iface>` captures before and after probing
+- Maps interface names to topology links and attributes drop deltas (confidence = 0.95)
+- Measures `netem` drops directly, which OVS port counters cannot see
 
 ### Combined Confidence
 When multiple evidence sources implicate a link, confidences are combined via weighted evidence scoring (independent combination):  
@@ -160,15 +165,15 @@ When multiple evidence sources implicate a link, confidences are combined via we
 | `AUDIT.md` | Original codebase audit, gap analysis, implementation roadmap |
 | `docs/DESIGN.md` | Architectural decisions, protocol formats, mathematical formulas |
 | `docs/DEMO.md` | 5-minute step-by-step oral presentation demonstration script |
-| `docs/VIVA.md` | 20 likely examiner questions with technical answers |
 | `docs/schemas.md` | JSON schemas for telemetry packets, topology, and reports |
 
-### Tests (55 tests, all passing)
+### Tests (82 tests, all passing)
 | File | Purpose |
 |---|---|
 | `tests/test_flow_inspector.py` | Flow-table path reconstruction, legacy match key parsing, LLDP/table-miss filtering |
 | `tests/test_sdn_topology.py` | DPID normalization, host parsing, topology parsing |
 | `tests/test_correlation.py` | Health classification, failure localization, backup ranking |
+| `tests/test_qdisc_stats.py` | Kernel qdisc parsing, drop-delta attribution, combined confidence |
 | `tests/test_statistics.py` | RTT statistics, jitter, percentiles |
 | `tests/test_integration.py` | UDP probe server/client end-to-end |
 | `tests/test_graph.py` | Topology graph path finding |
@@ -176,23 +181,28 @@ When multiple evidence sources implicate a link, confidences are combined via we
 | `tests/test_report_generator.py` | Report generation |
 | `tests/test_reroute_helper.py` | Flow rule generation and dry-run/apply |
 | `tests/test_packet_parsing.py` | Probe packet parsing and validation |
+| `tests/test_real_diamond_fixtures.py` | Live diamond fixture verification (switches, links, flows, port stats) |
 
 ### Fixtures
 | Directory | Contents |
 |---|---|
 | `tests/fixtures/real/` | **Preserved** linear_3 topology fixtures (switches, links, hosts, flows, port stats) |
-| `tests/fixtures/synthetic_diamond/` | **New** diamond topology fixtures in real Ryu format (s1, s2, s3 switches; h1, h2 hosts; flow tables with legacy keys; port stats) |
+| `tests/fixtures/synthetic_diamond/` | Diamond topology fixtures in Ryu format (s1, s2, s3 switches; h1, h2 hosts; flow tables with legacy keys; port stats) |
+| `tests/fixtures/real_diamond/` | Diamond fixtures captured from the live testbed, including primary/backup flow tables and per-switch port statistics |
 
 ### Results
 | Directory | Contents |
 |---|---|
 | `results/demo_localhost/` | Standalone localhost demo outputs |
-| `results/20261019_222731/` | Scenario results: healthy, degraded, failed |
+| `results/real_20261105_222258/` | **Latest** live four-scenario suite (healthy, degraded, failed, recovery); `results/latest` points here |
+| `results/real_20261105_150848/` | Previous live four-scenario suite (independent qdisc validation) |
+| `results/real_20261023_190236/` | Historical live four-scenario suite analysed in the evidence docs |
+| `results/cli_verification/` | Live CLI verification artifacts and transcript |
 
 ### Scripts
 | File | Purpose |
 |---|---|
-| `scripts/run_all_scenarios.sh` | Runs all 3 scenarios (healthy, degraded, failed) |
+| `scripts/run_all_scenarios.sh` | Runs all 4 scenarios (healthy, degraded, failed, recovery) |
 | `scripts/demo_localhost.sh` | Standalone localhost demo (no root/Mininet required) |
 | `topology/diamond_topo.py` | Mininet diamond topology definition |
 
@@ -233,40 +243,28 @@ The suite validates three scenarios with offline test fixtures, not measurements
 
 ---
 
-## 10. What Needs to Be Done (Remaining Work / Roadmap)
+## 10. Completed Validation & Optional Roadmap
 
-### Immediate Priorities
+### Completed during final validation
+
+- **Live Ryu + Mininet validation:** The full four-scenario suite ran end-to-end on Ubuntu 26.04 with Mininet 2.3.0, Open vSwitch 3.7.1 and Ryu 4.34 (`results/real_20261105_222258/`).
+- **Real diamond fixtures:** Live switch, link, host, flow-table and port-stat captures are present in `tests/fixtures/real_diamond/` and covered by `tests/test_real_diamond_fixtures.py`.
+- **Host discovery bootstrap:** `sdn_topology.py` accepts an authoritative `hosts.json` via `--hosts-file`, and the Mininet orchestrator emits it automatically.
+- **Documentation:** `README.md` and `SETUP.md` were completed with the requirement matrix, flow-table reconstruction, mock modes, live setup, and automated scripts.
+- **Qdisc localization:** Kernel qdisc drop deltas are consumed by `correlate.py`; the archived 60% heuristic is retained only as a fallback.
+
+### Optional future enhancements
 
 | # | Task | Description | Priority |
 |---|------|-------------|----------|
-| 1 | **Capture synthetic_diamond fixtures from live Ryu** | Re-capture all fixtures (`tests/fixtures/synthetic_diamond/`) from the diamond topology once it is running with real Ryu controller output. Current fixtures are simulated based on real Ryu format but should be validated against actual controller responses. | High |
-| 2 | **Verify against real Ryu controller** | Run the full suite against a live Ryu controller (`ryu-manager ryu.app.rest_topology ryu.app.ofctl_rest ryu.app.simple_switch_13 --observe-links`) with Mininet diamond topology to validate end-to-end flow table reconstruction, path correlation, and rerouting. | High |
-| 3 | **Warm-up ping for host discovery** | Implement warm-up ping or host list file reading in `sdn_topology.py` when `/v1.0/topology/hosts` returns empty (fresh controller). The code handles empty lists gracefully but the warm-up mechanism needs to be wired into the discovery flow. | Medium |
-
-### Medium-Term Enhancements
-
-| # | Task | Description | Priority |
-|---|------|-------------|----------|
-| 4 | **config.json security** | Remove hardcoded plaintext password; add environment variable override (`CONTROLLER_PASSWORD`); add `.gitignore` protection for `config.local.json`; add schema validation. | Medium |
-| 5 | **Mock controller mode for sdn_topology.py** | Add mock controller fallback when the real controller is offline (currently `discover_topology` fails completely without a controller). | Medium |
-| 6 | **Topology `--watch` mode in sdn_topology.py** | The CLI supports `--watch` but the underlying `discover_topology` needs live link state update support for real-time monitoring. | Medium |
-| 7 | **Per-segment probing responders** | Implement intermediate probe responders on switch attachments for Evidence Source B (segment probing) to work end-to-end. | Medium |
-| 8 | **Flow table path reconstruction with IPv6** | Extend `flow_inspector.py` match_rule to handle IPv6 match keys (`ipv6_dst`) alongside IPv4. | Low |
-
-### Long-Term / Future Enhancements (from README Section 9)
-
-| # | Task | Description |
-|---|------|-------------|
-| 9 | **P4 / In-Band Network Telemetry (INT)** | Direct embedding of hop latency and port queue depth into packet headers at line rate. |
-| 10 | **Segment Routing over IPv6 (SRv6)** | Source-routed backup path deployment without requiring per-hop flow-table modifications. |
-| 11 | **Streaming Machine Learning Telemetry** | Real-time predictive anomaly detection to anticipate queue overflow and execute proactive traffic steering. |
-
-### Documentation Gaps
-
-| # | Task | Description |
-|---|------|-------------|
-| 12 | **Update README.md** | Add requirement traceability matrix, document flow table path reconstruction, document mock modes, update for new features and automated scripts. |
-| 13 | **Complete SETUP.md** | Full Mininet, Ryu, and Python environment setup instructions (referenced but may need completion). |
+| 1 | **config.json security** | Remove hardcoded plaintext password; add environment variable override (`CONTROLLER_PASSWORD`); add `.gitignore` protection for `config.local.json`; add schema validation. | Medium |
+| 2 | **Mock controller mode for sdn_topology.py** | Add a mock-controller fallback when the real controller is offline (the standalone localhost demo already uses `mock_controller.py`). | Medium |
+| 3 | **Deeper `sdn_topology.py --watch` integration** | The unified `sdnscope.py watch` command already monitors live link state; this item covers exposing the same update loop directly from `sdn_topology.py`. | Medium |
+| 4 | **Per-segment probing responders** | Implement intermediate probe responders on switch attachments for Evidence Source B (segment probing) to work end-to-end. | Medium |
+| 5 | **Flow table path reconstruction with IPv6** | Extend `flow_inspector.py` match_rule to handle IPv6 match keys (`ipv6_dst`) alongside IPv4. | Low |
+| 6 | **P4 / In-Band Network Telemetry (INT)** | Direct embedding of hop latency and port queue depth into packet headers at line rate. | Low |
+| 7 | **Segment Routing over IPv6 (SRv6)** | Source-routed backup path deployment without requiring per-hop flow-table modifications. | Low |
+| 8 | **Streaming Machine Learning Telemetry** | Real-time predictive anomaly detection to anticipate queue overflow and execute proactive traffic steering. | Low |
 
 ---
 
@@ -279,7 +277,7 @@ source .venv/bin/activate
 # Install dependencies
 pip install -r requirements.txt
 
-# Run full test suite (71 tests with coverage)
+# Run full test suite (82 tests with coverage)
 make test
 
 # Run ruff static code analysis (zero lint errors enforced)
@@ -338,16 +336,14 @@ cn_project/
 ├── reroute_helper.py                  # Backup flow rule deployment
 ├── report_generator.py                # Report generation
 ├── mock_controller.py                 # Mock Ryu controller REST server
-├── topology.json                      # Default topology file
 ├── topology/
 │   └── diamond_topo.py                # Mininet diamond topology
 ├── docs/
 │   ├── DESIGN.md                      # Architecture & protocol specs
 │   ├── DEMO.md                        # Demo script
-│   ├── VIVA.md                        # Examiner Q&A
 │   └── schemas.md                     # JSON schemas
 ├── tests/
-│   ├── test_flow_inspector.py         # Flow inspector tests (69 total tests)
+│   ├── test_flow_inspector.py         # Flow inspector tests (82 total tests)
 │   ├── test_sdn_topology.py           # Topology discovery tests
 │   ├── test_correlation.py            # Correlation tests
 │   ├── test_statistics.py             # Statistics tests
@@ -364,7 +360,11 @@ cn_project/
 │       └── real_diamond/              # Diamond topology fixtures (live capture)
 ├── results/
 │   ├── latest/                        # Symlink to latest real execution
-│   └── real_20261023_190236/          # Live Mininet+Ryu scenario outputs
+│   ├── real_20261105_222258/          # Latest live four-scenario run
+│   ├── real_20261105_150848/          # Previous live four-scenario run
+│   ├── real_20261023_190236/          # Historical live four-scenario run
+│   ├── demo_localhost/                # Standalone localhost demo
+│   └── cli_verification/              # Live CLI verification artifacts
 └── scripts/
     ├── run_all_scenarios.sh           # Run live testbed scenarios
     ├── run_ryu.sh                     # Ryu controller runner
@@ -375,4 +375,4 @@ cn_project/
 ---
 
 **End of Project Summary**  
-*All 71 tests pass. All ruff lint checks pass.*
+*All 82 tests pass. All ruff lint checks pass.*

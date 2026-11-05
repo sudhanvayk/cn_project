@@ -10,7 +10,7 @@ import time
 
 import requests
 
-PROJECT_ROOT = "/home/sudh/Documents/cn_project"
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, PROJECT_ROOT)
 
 from mininet.link import TCLink

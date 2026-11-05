@@ -26,8 +26,11 @@ except ImportError as exc:
     print(f"[FATAL] Mininet is required to run scenario_runner: {exc}", file=sys.stderr)
     sys.exit(1)
 
-PROJECT_DIR = "/home/sudh/Documents/cn_project"
+PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 VENV_PYTHON = os.path.join(PROJECT_DIR, ".venv/bin/python")
+if not os.path.exists(VENV_PYTHON):
+    # Fall back to the interpreter running this script when the venv is absent.
+    VENV_PYTHON = sys.executable
 SDNSCOPE_CLI = os.path.join(PROJECT_DIR, "sdnscope.py")
 DEFAULT_REST_URL = "http://127.0.0.1:8080"
 DEFAULT_OF_PORT = 6653
@@ -341,6 +344,8 @@ def main():
                 f"--controller {args.ryu_url} "
                 f"--baseline-stats {os.path.join(output_dir, 'before_port_stats.json')} "
                 f"--current-stats {os.path.join(output_dir, 'after_port_stats.json')} "
+                f"--qdisc-before {os.path.join(output_dir, 'tc_qdisc_before.txt')} "
+                f"--qdisc-after {os.path.join(output_dir, 'tc_qdisc_after.txt')} "
                 f"-o {report_json_path}"
             )
 

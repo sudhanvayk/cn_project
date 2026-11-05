@@ -1,6 +1,6 @@
 # SDN Network Diagnostic and Path Analysis Report
 
-**Timestamp:** `2026-10-23T13:32:49Z`  
+**Timestamp:** `2026-11-05T09:55:24Z`  
 **Overall Path Health:** 🟩 **HEALTHY** (`HEALTHY_PATH`)  
 **Endpoint Target:** `h1` -> `h2` (`10.0.0.2`)  
 **Path Identification Method:** `FLOW_TABLE`  
@@ -40,16 +40,16 @@
 |---|---|---|---|
 | **Probes Sent / Received** | `50` sent / `50` received | `50` / `50` | OK |
 | **Packet Loss Rate** | `0.00%` | `<= 0.0%` (Fail: `>= 50.0%`) | Normal |
-| **Mean RTT** | `13.24 ms` | `<= 50.0 ms` | Normal |
-| **Minimum / Maximum RTT** | `9.89 ms` / `32.42 ms` | N/A | Range Spread |
-| **Median RTT** | `11.81 ms` | N/A | Central Tendency |
-| **95th Percentile RTT (p95)** | `19.59 ms` | N/A | Tail Latency Indicator |
-| **Standard Deviation Jitter** | `3.94 ms` | Low variation | Sample Deviation |
-| **RFC 3550 Inter-Arrival Jitter** | `3.85 ms` | Smoothed $J = J + (|D|-J)/16$ | Statistical Standard |
+| **Mean RTT** | `9.85 ms` | `<= 50.0 ms` | Normal |
+| **Minimum / Maximum RTT** | `9.05 ms` / `10.79 ms` | N/A | Range Spread |
+| **Median RTT** | `9.76 ms` | N/A | Central Tendency |
+| **95th Percentile RTT (p95)** | `10.69 ms` | N/A | Tail Latency Indicator |
+| **Standard Deviation Jitter** | `0.48 ms` | Low variation | Sample Deviation |
+| **RFC 3550 Inter-Arrival Jitter** | `0.40 ms` | Smoothed $J = J + (|D|-J)/16$ | Statistical Standard |
 
 
 ### RTT Time-Series Chart
-![RTT Time-Series Chart](rtt_timeseries.png)
+![RTT Time-Series Chart](/home/sudh/cn_project-main/results/cli_verification/rtt_timeseries.png)
 
 ---
 

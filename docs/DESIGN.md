@@ -162,7 +162,7 @@ SDNScope implements hybrid host discovery:
 
 ## 5. Multi-Source Failure Localization Methodology
 
-End-to-end packet loss only reveals that *some* link along the path is degraded or failed; it cannot pinpoint *where*. `correlate.py` implements a 3-tier evidence aggregation model:
+End-to-end packet loss only reveals that *some* link along the path is degraded or failed; it cannot pinpoint *where*. `correlate.py` implements a 4-source evidence aggregation model:
 
 ### Evidence Source A: Switch Port Statistics Deltas
 - Polls switch port counters (`/stats/port/<dpid>`) before and after probing.
@@ -183,25 +183,34 @@ End-to-end packet loss only reveals that *some* link along the path is degraded 
 - Compares the controller's active link inventory (`/v1.0/topology/links`) against the baseline topology graph.
 - Any link present in the active path that is absent from controller active links is flagged as severed ($C = 1.0$).
 
+### Evidence Source D: Linux Kernel Qdisc Drop Deltas
+- `scenario_runner.py` captures `tc -s qdisc show dev <iface>` on both ends of the impaired link before and after probing (`tc_qdisc_before.txt`, `tc_qdisc_after.txt`).
+- `correlate.py` (`--qdisc-before` / `--qdisc-after`) parses the raw `Sent ... (dropped N)` counters, maps each link to its Mininet interface names (`s1:2` → `s1-eth2`), and computes the drop delta per direction.
+- Because Open vSwitch forwards frames to the Linux veth before `netem` drops them, this is the only source that measures the impaired queue directly. A positive delta flags the link at $C = 0.95$.
+- Raw `tc` text and JSON (`{"s1-eth2": {"dropped": 9}}`) are both accepted, so operators can supply counters scraped by other tooling.
+
 ### Combined Confidence Formulation (Weighted Evidence Scoring)
 When multiple evidence sources independently implicate link $k$, their individual confidence scores $c_1, c_2, \dots, c_m$ are combined via independent multi-source evidence combination (noisy-OR formula):
 $$C_{\text{combined}}(k) = 1.0 - \prod_{i=1}^m (1.0 - c_i)$$
 
 Where each source contributes an empirical detection weight $c_i \in (0, 1]$:
 - $c_i = 1.0$: Physical link severance verified via controller topology withdrawal.
+- $c_i = 0.95$: Linux kernel qdisc drop counter increment ($\Delta \text{qdisc\_dropped} > 0$).
 - $c_i = 0.85$: Switch egress port drop counter increment ($\Delta \text{TX\_Drop} > 0$).
 - $c_i = 0.75$: Port TX/RX packet counter mismatch ($\Delta \text{TX}_{src} > \Delta \text{RX}_{dst}$).
 - $c_i = 0.90$: Segment probe degradation / failure.
-- $c_i = 0.60$: Path-membership heuristic fallback when end-to-end anomalies are detected but direct telemetry sources report zero localized anomalies.
+- $c_i = 0.60$: Path-membership heuristic fallback when end-to-end anomalies are detected but direct telemetry sources report zero localized anomalies (used only when qdisc telemetry is not supplied or shows no increment).
 
 ### Path-Membership Heuristic vs. Direct Telemetry (Degraded Scenario Analysis)
-In our real degraded scenario run, link `s1-eth2 <---> s2-eth2` was degraded using Linux kernel `tc netem`:
+In our real degraded scenarios, link `s1-eth2 <---> s2-eth2` was degraded using Linux kernel `tc netem`:
 1. **OVS Port Statistics Deltas (`/stats/port`):** Raw `tx_dropped` and `rx_dropped` deltas on `s1` (port 2) and `s2` (port 2) were strictly **0**. Open vSwitch handed frames to the Linux veth netdevice before the kernel qdisc dropped them, so OVS port counters recorded zero drops.
-2. **Kernel Qdisc Drops (`tc -s qdisc show dev s1-eth2`):** Raw kernel output reported **5 dropped packets** on `s1-eth2` and **8 dropped packets** on `s2-eth2`. However, kernel qdisc telemetry is not exposed over northbound OpenFlow 1.3 REST APIs.
+2. **Kernel Qdisc Drops (`tc -s qdisc show dev s1-eth2`):** Raw kernel output reported **5 + 8 = 13 drops** in the 2026-10-23 run and **9 + 3 = 12 drops** in the 2026-10-25 run. Kernel qdisc telemetry is not exposed over northbound OpenFlow 1.3 REST APIs, so it is captured out-of-band by `scenario_runner.py` and passed to `correlate.py`.
 3. **Topology Liveness (`/v1.0/topology/links`):** The link remained link-state UP and carrier active; Ryu observed all 3 links continuously.
 4. **Segment Probes:** No intermediate hop probe responders existed on this unrouted topology.
 
-**Honest Classification:** The 60.0% confidence assigned to `s1 <---> s2` in the degraded scenario was derived **solely from path-membership heuristic inference** (flagging the traversed intermediate core switch-to-switch link along the degraded path). It is **not a physical measurement**. This heuristic allows backup path pruning to explore alternative routes (`h1-s1-s3-s2-h2`) without penalizing host-to-switch access links (`h1-s1`, `s2-h2`).
+**Historical vs. current classification:** Both archived runs predate qdisc ingestion, so their reports show 60.0% confidence from **path-membership heuristic inference**, not a physical measurement. The current pipeline consumes those captures: re-correlating the 2026-10-23 run (13 qdisc drops versus 10 lost probes) and the 2026-10-25 run (12 drops versus 11 lost probes) both produce **95.0% confidence on `s1 <---> s2` from direct measurement**. The 60% heuristic remains only as a fallback when qdisc telemetry is unavailable.
+
+This preserves useful behaviour for path pruning: direct qdisc evidence prunes the impaired `s1 <---> s2` link while leaving host-to-switch access links (`h1-s1`, `s2-h2`) viable.
 
 ---
 
