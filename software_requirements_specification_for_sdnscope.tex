@@ -1,0 +1,513 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[a4paper,top=1.8cm,bottom=1.8cm,left=2.2cm,right=2.2cm]{geometry}
+\usepackage{helvet}
+\renewcommand{\familydefault}{\sfdefault}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage[hidelinks]{hyperref}
+\usepackage{xurl}
+\usepackage{tocloft}
+\renewcommand{\contentsname}{Table of Contents}
+\setcounter{tocdepth}{2}
+\renewcommand{\cftsecleader}{\cftdotfill{\cftdotsep}}
+\renewcommand{\cftsubsecleader}{\cftdotfill{\cftdotsep}}
+\setlength{\cftsecindent}{0pt}
+\setlength{\cftsubsecindent}{0.75cm}
+\setlength{\cftbeforesecskip}{3pt}
+\setlength{\cftbeforesubsecskip}{1pt}
+\renewcommand{\cftsecfont}{\small\bfseries}
+\renewcommand{\cftsecpagefont}{\small\bfseries}
+\renewcommand{\cftsubsecfont}{\small}
+\renewcommand{\cftsubsecpagefont}{\small}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt}
+\setlength{\emergencystretch}{3em}
+\setlist[itemize]{topsep=2pt,itemsep=2pt,parsep=0pt}
+\setlist[enumerate]{topsep=2pt,itemsep=2pt,parsep=0pt}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\textit{Software Requirements Specification for SDNScope}}
+\fancyhead[R]{\small\textbf{Page \thepage}}
+\renewcommand{\headrulewidth}{0.4pt}
+
+\titleformat{\section}{\Large\bfseries}{\thesection.}{0.5cm}{}
+\titleformat{\subsection}{\large\bfseries}{\thesubsection}{0.5cm}{}
+\titleformat{\subsubsection}{\normalsize\bfseries}{\thesubsubsection}{0.5cm}{}
+
+\newcommand{\code}[1]{\texttt{\detokenize{#1}}}
+\newcommand{\fpath}[1]{{\def\UrlBreaks{\do\_\do\/\do\.\do\-}\path{#1}}}
+
+\begin{document}
+
+% ---------------------------------------------------------------------------
+% TITLE PAGE
+% ---------------------------------------------------------------------------
+\begin{titlepage}
+\vspace*{1.5cm}
+\noindent\rule{\textwidth}{1.5pt}
+\vspace{0.8cm}
+
+\begin{flushright}
+{\fontsize{26}{32}\selectfont\textbf{Software Requirements}}\\[6pt]
+{\fontsize{26}{32}\selectfont\textbf{Specification}}\\[16pt]
+{\fontsize{16}{20}\selectfont\textbf{for}}\\[16pt]
+{\fontsize{26}{32}\selectfont\textbf{SDNScope}}\\[22pt]
+{\fontsize{13}{16}\selectfont\textbf{Version 1.1 approved}}\\[32pt]
+{\fontsize{13}{16}\selectfont\textbf{Prepared by}}\\[4pt]
+{\fontsize{13}{16}\selectfont\textbf{Sudhanva Y K, Suhana A Ghosh, Siddhanth S}}\\[20pt]
+{\fontsize{13}{16}\selectfont\textbf{Computer Networks Project (cn\_project)}}\\[20pt]
+{\fontsize{13}{16}\selectfont\textbf{November 2026}}
+\end{flushright}
+
+\vfill
+\begin{center}
+{\footnotesize Document structure based on the IEEE 830 template by Karl E. Wiegers.\\
+Permission is granted to use, modify, and distribute this template.}
+\end{center}
+\end{titlepage}
+\setcounter{page}{2}
+
+% ---------------------------------------------------------------------------
+% CONTENTS AND REVISION HISTORY
+% ---------------------------------------------------------------------------
+{\setlength{\parskip}{2pt}
+\tableofcontents
+}
+\thispagestyle{fancy}
+
+\vspace{10pt}
+\section*{Revision History}
+\renewcommand{\arraystretch}{1.35}
+\begin{center}
+\begin{tabular}{|p{4.0cm}|p{2.2cm}|p{6.8cm}|p{1.5cm}|}
+\hline
+\textbf{Name} & \textbf{Date} & \textbf{Reason for Changes} & \textbf{Version} \\
+\hline
+Sudhanva Y K & 2026-10-19 & First draft of the SDNScope requirements. & 0.9 \\
+\hline
+Sudhanva Y K & 2026-10-25 & Added live Mininet verification and reroute details. & 1.0 \\
+\hline
+Sudhanva Y K & 2026-11-05 & Final review: corrected the diamond topology, updated the supported Python range and documentation list, and added the qdisc-based localization approach. & 1.1 \\
+\hline
+\end{tabular}
+\end{center}
+
+\newpage
+
+% ---------------------------------------------------------------------------
+% 1. INTRODUCTION
+% ---------------------------------------------------------------------------
+\section{Introduction}
+
+\subsection{Purpose}
+This document describes what SDNScope is expected to do and how it should behave. It covers the complete tool: the UDP probe client and server, the controller topology collector, the OpenFlow flow-table inspector, the correlation engine, the reroute helper, and the report generator.
+
+The document is a requirements document, not a design document. It says what the system must do and what limits it must respect. The internal design is described separately in \code{docs/DESIGN.md}.
+
+\subsection{Document Conventions}
+The document follows the IEEE 830 structure. A sentence that contains the word ``shall'' is a requirement. Requirements are labelled \code{REQ-1}, \code{REQ-2}, and so on so that they can be traced to tests.
+
+Names of files, commands, and JSON fields are written in a monospace font, for example \code{correlate.py} or \fpath{correlation_report.json}. Percentages and times are written exactly as they appear in the captured results.
+
+\subsection{Intended Audience and Reading Suggestions}
+The document is written for three groups of readers:
+
+\begin{itemize}
+  \item \textbf{Evaluators and instructors} can read Section 1.4 and Section 2 first. These sections explain the problem, the scope, and the overall behaviour without requiring knowledge of the source code.
+  \item \textbf{Developers} should read Section 3 and Section 4. These sections describe the interfaces and the required behaviour of every functional area.
+  \item \textbf{Testers} should read Section 4, Section 5, and the separate test plan (\fpath{software_test_plan_for_sdnscope.tex}). The test plan maps these requirements to concrete test cases and evidence.
+\end{itemize}
+
+\subsection{Product Scope}
+A normal \code{ping} or \code{traceroute} tells you whether packets reached the other side, but it cannot see the OpenFlow rules that decide the path. In an SDN, the controller knows the topology, the flow tables, and the port counters, but it does not measure the actual quality of the path that the application is using. Troubleshooting therefore needs both views at the same time.
+
+SDNScope combines the two views. It sends timestamped UDP probes between hosts, collects topology and flow information from the Ryu controller, and compares the two data sets. From that comparison it can say whether a path is healthy, degraded, or failed, which link is the most likely cause, and which backup path can be used. When a failure is confirmed, the reroute helper can install backup OpenFlow rules.
+
+The tool is intended for a lab or teaching environment, mainly the three-switch diamond topology built with Mininet. It is not a production monitoring platform. It does not replace the controller, and it does not try to handle every possible network design. Its value is that every conclusion is backed by a measured number or a captured controller response, and every run is saved as evidence.
+
+\subsection{References}
+\begin{enumerate}
+  \item Project repository: \url{https://github.com/sudhanvayk/cn_project}. This contains the source code, the JSON schemas, and the captured test evidence.
+  \item IEEE Std 830-1998, \textit{IEEE Recommended Practice for Software Requirements Specifications}.
+  \item OpenFlow Switch Specification, version 1.3, Open Networking Foundation.
+  \item Ryu SDN Framework documentation, including the \code{ofctl_rest} and topology REST APIs.
+  \item Mininet documentation, including \code{TCLink}, \code{OVSSwitch}, and the Python topology API.
+  \item Project documents: \code{README.md}, \code{SETUP.md}, \code{docs/DESIGN.md}, \code{docs/schemas.md},\\
+  \code{docs/EVIDENCE.md}, \code{TEST_CASES.md}, and \fpath{SUBMISSION_CHECKLIST.md}.
+\end{enumerate}
+
+% ---------------------------------------------------------------------------
+% 2. OVERALL DESCRIPTION
+% ---------------------------------------------------------------------------
+\section{Overall Description}
+
+\subsection{Product Perspective}
+SDNScope is a command-line toolkit that runs next to a small OpenFlow network. The network used for development and testing is a diamond built in Mininet:
+
+\begin{verbatim}
+      h1 (10.0.0.1)                 h2 (10.0.0.2)
+           |                              |
+          s1 (dpid 1) ---------------- s2 (dpid 2)
+           \                            /
+            \                          /
+             \                        /
+              +------ s3 (dpid 3) --+
+
+Primary path:      h1 -> s1 -> s2 -> h2          (direct s1--s2 link)
+Backup path:       h1 -> s1 -> s3 -> s2 -> h2    (via s3, one hop longer)
+\end{verbatim}
+
+The primary route uses the direct \verb|s1--s2| link. The backup route goes through \code{s3} and adds one hop. The switches are managed by Ryu over OpenFlow 1.3, and the hosts send UDP probes to each other.
+
+For work that does not need root access, the repository also includes a localhost mode. In this mode \code{mock_controller.py} returns controller-like JSON, and the probe server and client run on the loopback interface. This is the mode used by the automated tests and by \code{make demo}.
+
+\subsection{Product Functions}
+The tool performs seven main functions. Each one exists because the previous step alone cannot give a complete answer.
+
+\begin{enumerate}
+  \item \textbf{Active probing.} The client sends numbered UDP probes and records the time each reply arrives. This gives round-trip time, packet loss, and jitter. Without this step there is no evidence that the user traffic is actually affected.
+  \item \textbf{Path tracing.} The trace command reports the IP hops that can be seen. In an SDN, the switches usually do not decrement the IP TTL, so a normal traceroute often shows only one hop. The tool therefore explains this limitation and relies on the flow table for the real path.
+  \item \textbf{Topology discovery.} The topology command asks the controller for switches, links, and hosts. It converts the reply into one graph that every other module can use.
+  \item \textbf{Flow-table inspection.} The flow inspector reads the installed rules and follows the output ports from the source switch to the destination host. This is the authoritative path, not a guess based on the shortest route.
+  \item \textbf{Correlation and localization.} The correlation engine compares probe results with port counters, link state, flow entries, and kernel qdisc counters. It then produces a health verdict, a list of suspected links, a confidence value, and the evidence behind each conclusion.
+  \item \textbf{Backup path selection and rerouting.} When the primary path has failed, the tool ranks the remaining loop-free paths and can install higher-priority OpenFlow rules on the backup route. A dry-run mode shows the rules without changing any switch.
+  \item \textbf{Reporting.} Every run produces JSON files for machines and Markdown, HTML, and PNG files for people. The reports repeat the measurements, the suspected link, the evidence, and the recommended backup path.
+\end{enumerate}
+
+\subsection{User Classes and Characteristics}
+\begin{itemize}
+  \item \textbf{Network operators and instructors} understand IP addressing, routing, and the basic idea of OpenFlow. They use the CLI to check a path, read the report, and decide whether a reroute is safe.
+  \item \textbf{Students and developers} run the tool to learn how the data plane and the control plane relate. They use \code{make demo}, the scenario scripts, and the pytest suite.
+  \item \textbf{Testers and CI runners} do not need to understand the internals. They run the automated commands and compare the output with the expected verdicts in the test plan.
+\end{itemize}
+
+\subsection{Operating Environment}
+SDNScope runs on Linux. The project has been exercised on Ubuntu 22.04, 24.04, and 26.04, including a virtual machine. The supported Python range is 3.10 to 3.14, and the CI workflow tests every version in that range. The latest live run used Python 3.14.4.
+
+Live network emulation needs the following tools:
+\begin{itemize}
+  \item Mininet 2.3.0, which creates the hosts, switches, and links.
+  \item Open vSwitch 3.7.1, which provides the virtual switches.
+  \item Ryu 4.34, started with \code{ryu.app.ofctl_rest}, \code{ryu.app.rest_topology}, and \fpath{ryu.app.simple_switch_13}.
+  \item \code{iproute2}, for the \code{tc qdisc netem} delay and loss injection.
+  \item Root or passwordless sudo, because Mininet and \code{tc} need elevated privileges.
+\end{itemize}
+
+The localhost demo and the unit tests do not need Mininet, Ryu, or root. They run on any normal POSIX system with Python 3 and the packages listed in \code{requirements.txt}.
+
+\subsection{Design and Implementation Constraints}
+\begin{itemize}
+  \item Mininet and \code{tc} require root. The tool must therefore separate the privileged scenario runner from the normal diagnostic commands.
+  \item All modules exchange JSON. The field names and types are fixed by \code{docs/schemas.md}, so a captured fixture and a live response can be used in the same test.
+  \item Target addresses must be valid IPv4 addresses. The client must reject anything else before it creates a socket.
+  \item The current release supports IPv4 only.
+  \item The controller must be started with link discovery enabled. Without it, the topology REST endpoint returns an empty or incomplete link list.
+\end{itemize}
+
+\subsection{User Documentation}
+The repository includes the following documents:
+\begin{itemize}
+  \item \code{README.md}: overview, quick start, requirement mapping, CLI reference, and the latest verified results.
+  \item \code{SETUP.md}: installation of Python, Mininet, Open vSwitch, and Ryu, including the sudo requirements.
+  \item \code{docs/DESIGN.md}: internal design, protocol formats, and the formulas used for statistics and confidence.
+  \item \code{docs/schemas.md}: JSON schemas for topology, probe results, correlation reports, and configuration.
+  \item \code{docs/EVIDENCE.md}: captured transcripts, comparison tables, and the evidence behind the reported numbers.
+  \item \code{docs/DEMO.md}: a short demonstration script for a presentation.
+  \item \code{TEST_CASES.md} and \code{TESTER_REPORT.md}: the test cases and the tester's written report.
+  \item \fpath{SUBMISSION_CHECKLIST.md}: the acceptance checks and the official evidence list.
+\end{itemize}
+
+\subsection{Assumptions and Dependencies}
+The tool assumes that the Ryu controller is reachable over HTTP and that link discovery is enabled. It also assumes that the user has a hosts file or a running discovery mechanism, because a fresh controller may not yet know the hosts. The main software dependencies are \code{requests} for HTTP, \code{matplotlib} for the RTT chart, and \code{pytest} for the tests.
+
+Two limitations are worth stating up front. First, one-way delay figures depend on clock synchronisation between the two hosts; round-trip time does not, because both timestamps are taken on the client. Second, a very short outage can begin and end between two controller polls, so the tool may only see the probe loss, not the link event. In that case the correlation engine falls back to the probe evidence and says so.
+
+% ---------------------------------------------------------------------------
+% 3. EXTERNAL INTERFACE REQUIREMENTS
+% ---------------------------------------------------------------------------
+\section{External Interface Requirements}
+
+\subsection{User Interfaces}
+The main interface is the command line. \code{sdnscope.py} groups the functions into ten subcommands:
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{longtable}{|p{2.4cm}|p{10.6cm}|}
+\hline
+\textbf{Command} & \textbf{What it does} \\
+\hline
+\endhead
+\code{probe} & Sends UDP probes to a target and writes RTT, loss, and jitter statistics. \\
+\hline
+\code{serve} & Starts the UDP echo server, optionally with an artificial delay or drop rate. \\
+\hline
+\code{trace} & Runs an IP-layer trace and reports the hops it can actually observe. \\
+\hline
+\code{topo} & Asks the controller for switches, links, and hosts and writes a topology file. \\
+\hline
+\code{paths} & Builds the graph and lists the loop-free paths between two hosts, shortest first. \\
+\hline
+\code{correlate} & Combines probe results with topology and counter data and writes a diagnosis. \\
+\hline
+\code{watch} & Polls the controller and prints link-up and link-down events. \\
+\hline
+\code{localize} & Runs the multi-source localization step on its own. \\
+\hline
+\code{reroute} & Shows or installs backup flow rules for a failed path. \\
+\hline
+\code{report} & Produces the Markdown, HTML, and PNG outputs from a correlation report. \\
+\hline
+\end{longtable}
+\end{center}
+
+Invalid input is reported as a short error message on standard error, followed by a non-zero exit code. For example, an invalid address is rejected with \code{[ERROR] Invalid IPv4 address}. The tool does not print a Python traceback for a user input mistake.
+
+\subsection{Hardware Interfaces}
+The software does not drive physical network cards. It works with the virtual Ethernet pairs, network namespaces, and Open vSwitch datapaths that Mininet creates. Link bandwidth, delay, and loss are applied to the virtual switch ports with Linux traffic control (\code{tc qdisc netem}). On a real testbed the same commands would apply to real interfaces, but that deployment has not been tested.
+
+\subsection{Software Interfaces}
+\begin{itemize}
+  \item \textbf{Ryu REST API.} The tool reads \fpath{/v1.0/topology/switches}, \code{/v1.0/topology/links}, \code{/v1.0/topology/hosts}, \code{/stats/switches}, \code{/stats/flow/<dpid>}, and \code{/stats/port/<dpid>}, and it posts rules to \code{/stats/flowentry/add}. The default address is \code{http://127.0.0.1:8080}.
+  \item \textbf{Mock controller.} \code{mock_controller.py} serves the same JSON shapes on a local port. It is used by the demo and by tests that must run without root.
+  \item \textbf{JSON artifacts.} The modules read and write \code{config.json}, \code{topology.json}, \code{paths.json}, \code{diagnostic_result.json}, \code{trace.json}, and \fpath{correlation_report.json}. The exact schema is in \code{docs/schemas.md}.
+  \item \textbf{Build and test interface.} The \code{Makefile} provides \code{make install}, \code{make test}, \code{make lint}, \code{make demo}, \code{make real-check}, and \code{make real-scenarios}.
+\end{itemize}
+
+\subsection{Communications Interfaces}
+The probe client and server use UDP over IPv4. The default port is 9999. Each probe carries a sequence number and a client timestamp, and the reply repeats them so that the client can calculate the round-trip time.
+
+Controller communication uses HTTP over TCP port 8080 with JSON bodies. OpenFlow 1.3 messages between Open vSwitch and Ryu use TCP port 6653 by default; port 6633 is accepted as the older convention. The probe server binds to localhost or to the Mininet host address, not to a public interface.
+
+% ---------------------------------------------------------------------------
+% 4. SYSTEM FEATURES
+% ---------------------------------------------------------------------------
+\section{System Features}
+
+The features are grouped in the order in which a diagnostic run uses them: measure, discover, correlate, reroute, and report. Each feature has a short description, a stimulus/response sequence, and numbered requirements.
+
+\subsection{Active Data-Plane Probing and Telemetry}
+
+\subsubsection{Description and Priority}
+This feature measures the quality of the path between two hosts. The probe server echoes each request, and the client records the time until the reply arrives. Priority is \textbf{high}, because every later conclusion depends on these measurements.
+
+\subsubsection{Stimulus and Response}
+A user or a scenario script starts the server, then runs \code{sdnscope.py probe} with a target address, a probe count, and a timeout. The client validates the address, sends the probes, waits for replies, and writes \code{diagnostic_result.json}. If the user also asks for a trace, it writes \code{trace.json}.
+
+\subsubsection{Functional Requirements}
+\begin{itemize}
+  \item \textbf{REQ-1:} The client shall validate the target as an IPv4 address before opening a socket. An invalid value shall produce a clear error and exit code 1.
+  \item \textbf{REQ-2:} The server shall echo every probe with its sequence number and timestamp so that the client can compute an accurate round-trip time.
+  \item \textbf{REQ-3:} The client shall report the number of probes sent, received, lost, duplicated, and out of order. It shall also report minimum, mean, median, maximum, standard deviation, the 95th percentile, and the RFC 3550 inter-arrival jitter.
+  \item \textbf{REQ-4:} The client shall classify the result as healthy, degraded, or failed using the configured thresholds and shall write the complete result as JSON.
+\end{itemize}
+
+\subsection{Topology, Path, and Flow Discovery}
+
+\subsubsection{Description and Priority}
+This feature answers the question ``where did the traffic actually go?''. It reads the controller's view of the network, builds a graph, lists possible paths, and then checks the flow tables to see which path is really installed. Priority is \textbf{high}.
+
+\subsubsection{Stimulus and Response}
+\code{sdnscope.py topo} reads the controller endpoints and writes \code{topology.json}. \code{sdnscope.py paths} reads that file and writes the ranked paths. The flow inspector is called during correlation and reads \code{/stats/flow/<dpid>} for each switch.
+
+\subsubsection{Functional Requirements}
+\begin{itemize}
+  \item \textbf{REQ-5:} The topology module shall read switches, links, hosts, and port state from the controller, or from an explicit hosts file when the controller does not know the hosts yet.
+  \item \textbf{REQ-6:} The path module shall build a graph and return all simple loop-free paths between the source and destination, ordered by hop count.
+  \item \textbf{REQ-7:} The flow inspector shall reconstruct the active path by following the installed rules and output ports. If the flow table is incomplete, it shall fall back to the graph path and mark the path source as \code{assumed_shortest} instead of \code{flow_table}.
+\end{itemize}
+
+\subsection{Correlation, Health Classification, and Localization}
+
+\subsubsection{Description and Priority}
+This is the part that turns measurements into a diagnosis. It compares the probe result with the control-plane state and with the kernel qdisc counters, then ranks the links that could explain the problem. Priority is \textbf{high}.
+
+\subsubsection{Stimulus and Response}
+\code{sdnscope.py correlate} takes the diagnostic result, the topology, and optional before/after port statistics and qdisc captures. It writes \fpath{correlation_report.json}. The report contains the health verdict, the metrics, the suspected links with confidence values, the evidence for each suspicion, and the backup paths.
+
+\subsubsection{Functional Requirements}
+\begin{itemize}
+  \item \textbf{REQ-8:} The engine shall classify the path as \code{FAILED_PATH} when packet loss is at or above the failure threshold (50\% by default) or when a link on the active path is missing. It shall classify the path as \code{DEGRADED_PATH} when there is some packet loss or when the mean RTT is above the degraded limit (50 ms by default). Otherwise the path is \code{HEALTHY_PATH}.
+  \item \textbf{REQ-9:} The engine shall use several independent sources of evidence: OpenFlow port drop counters, topology liveness (a link that disappeared), and Linux kernel qdisc drop counters. A conclusion shall state which sources were used.
+  \item \textbf{REQ-10:} The engine shall report a confidence value. A direct kernel qdisc measurement shall be reported separately from the weaker path-membership heuristic, so that a 95\% direct measurement is never confused with a 60\% guess.
+\end{itemize}
+
+\subsection{Backup Path Selection and Rerouting}
+
+\subsubsection{Description and Priority}
+When the primary path has failed, this feature selects a loop-free backup and can install the matching OpenFlow rules. Priority is \textbf{high} for the selection step; installation is deliberately conservative and is only performed when the user asks for it.
+
+\subsubsection{Stimulus and Response}
+\code{sdnscope.py reroute} reads the correlation report and the topology, removes the failed links from the graph, ranks the remaining paths, and prints the proposed rules. With \verb|--apply|, it sends the rules to the controller. Without it, the command is a dry run.
+
+\subsubsection{Functional Requirements}
+\begin{itemize}
+  \item \textbf{REQ-11:} The reroute helper shall never propose a path that contains a failed or suspect link.
+  \item \textbf{REQ-12:} The helper shall support a dry-run mode that changes nothing, and an apply mode that installs higher-priority backup rules with the correct destination address, not the loopback address.
+\end{itemize}
+
+\subsection{Reporting}
+
+\subsubsection{Description and Priority}
+This feature turns the JSON results into something a person can read and an evaluator can check. Priority is \textbf{medium}; the run is still valid without a report, but the report is required for submission.
+
+\subsubsection{Stimulus and Response}
+\code{sdnscope.py report} reads the correlation report and the diagnostic result and writes \code{report.md}, \code{report.html}, and \code{rtt_timeseries.png} into the run directory.
+
+\subsubsection{Functional Requirements}
+\begin{itemize}
+  \item \textbf{REQ-13:} The report shall include the probe statistics, the path, the health verdict, the suspected link with confidence, the evidence, the recommended backup, and the environment in which the run was taken.
+\end{itemize}
+
+% ---------------------------------------------------------------------------
+% 5. NONFUNCTIONAL REQUIREMENTS
+% ---------------------------------------------------------------------------
+\section{Other Nonfunctional Requirements}
+
+\subsection{Performance Requirements}
+A probe timeout must be respected. The default timeout is 1.0 second per packet, and a run must finish even when every probe is lost; it must not hang.
+
+On the live testbed, link-loss detection and correlation completed within the polling interval, and rerouting restored 0\% packet loss on the next probe run. The latest measured runs are:
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|c|c|c|c|}
+\hline
+\textbf{Scenario} & \textbf{Probes} & \textbf{Loss} & \textbf{Mean RTT} & \textbf{Verdict} \\
+\hline
+Healthy & 50 / 50 & 0.00\% & 9.68 ms & \code{HEALTHY_PATH} \\
+\hline
+Degraded & 100 / 92 & 8.00\% & 66.33 ms & \code{DEGRADED_PATH} \\
+\hline
+Failed & 20 / 0 & 100.00\% & -- & \code{FAILED_PATH} \\
+\hline
+Recovery (after reroute) & 50 / 50 & 0.00\% & 14.29 ms & \code{HEALTHY_PATH} \\
+\hline
+\end{tabular}
+\end{center}
+
+The full pytest suite currently runs in about six seconds on the development machine. That is fast enough to be used as a pre-flight gate before a live run.
+
+\subsection{Safety Requirements}
+The live scenarios change real kernel and OpenFlow state, so they must clean up after themselves. The scenario runner removes the \code{tc} rules and stops the network at the end of each scenario, even when a step fails. The reroute helper defaults to a dry run, and rules are only installed when \verb|--apply| is present.
+
+The tool is meant for a lab network. It should not be pointed at a production controller without a maintenance window, because it can add or replace flow entries.
+
+\subsection{Security Requirements}
+The probe server and the mock controller bind to localhost or to an isolated Mininet address by default. They are not intended to be exposed to the internet.
+
+User input is validated before use. Target addresses must be valid IPv4 addresses, ports must be in range, and file paths are checked before they are read or written. No password or token is stored in the repository: the default password field in \code{config.json} is empty, and the controller password can be supplied through the \code{CONTROLLER_PASSWORD} environment variable.
+
+\subsection{Software Quality Attributes}
+\begin{itemize}
+  \item \textbf{Testability.} Every module has unit or integration tests. The suite contains 82 tests and uses both synthetic fixtures and fixtures captured from the live diamond. The measured total coverage is 68\%.
+  \item \textbf{Reliability.} If the controller is down or returns incomplete data, the tool prints a clear error and exits instead of crashing with an unhandled exception. A missing flow table does not stop the run; the path source is marked as an assumption.
+  \item \textbf{Maintainability.} Each stage (probe, discovery, inspection, correlation, reroute, report) is a separate module with a documented JSON interface. A change in one stage does not require rewriting the others.
+  \item \textbf{Usability.} The CLI has short help text for every command, and every run leaves a report that explains the verdict in ordinary language.
+\end{itemize}
+
+\subsection{Business Rules}
+\begin{enumerate}
+  \item A path is \textbf{healthy} when it has no packet loss and its mean RTT is within the configured limit.
+  \item A path is \textbf{degraded} when it has some packet loss or a mean RTT above the limit, but the links are still present.
+  \item A path is \textbf{failed} when packet loss reaches the failure threshold or a link on the path is missing.
+  \item Rerouting is only proposed when the primary path has failed and a loop-free alternate path exists.
+  \item A conclusion must be backed by saved evidence. A run without its JSON files is not accepted as proof.
+\end{enumerate}
+
+% ---------------------------------------------------------------------------
+% 6. OTHER REQUIREMENTS
+% ---------------------------------------------------------------------------
+\section{Other Requirements}
+Every live or demo run is stored in a timestamped directory under \code{results/}. The directory contains the environment details, the probe result, the topology, the path list, the correlation report, the reports, and, where applicable, the before/after port and flow snapshots. The \code{results/latest} link points to the most recent live four-scenario run.
+
+Test evidence that is quoted in the documentation is also copied to \code{TEST_EVIDENCE/}. The evidence files are kept small and text-based where possible so that they can be reviewed without special tools.
+
+% ---------------------------------------------------------------------------
+% APPENDICES
+% ---------------------------------------------------------------------------
+\phantomsection
+\addcontentsline{toc}{section}{Appendix A: Glossary}
+\section*{Appendix A: Glossary}
+\begin{itemize}
+  \item \textbf{DPID.} Datapath identifier. The unique number that identifies an OpenFlow switch, for example 1, 2, or 3 in the diamond.
+  \item \textbf{Mininet.} A tool that builds a virtual network of hosts, switches, and links on one Linux machine.
+  \item \textbf{Netem.} The Linux \code{tc qdisc} module used to add delay or drop packets on a link.
+  \item \textbf{OpenFlow.} The protocol that lets a controller read and change switch flow tables.
+  \item \textbf{Qdisc.} A kernel queue attached to a network interface. Its drop counter shows packets that the kernel discarded before they left the interface.
+  \item \textbf{RTT.} Round-trip time. The time from sending a probe to receiving its reply, measured on the client.
+  \item \textbf{Jitter.} The variation in delay between packets. SDNScope reports both a standard deviation and the RFC 3550 inter-arrival estimate.
+\end{itemize}
+
+\phantomsection
+\addcontentsline{toc}{section}{Appendix B: Analysis Models}
+\section*{Appendix B: Analysis Models}
+The network model is the diamond shown in Section 2.1. Host \code{h1} connects to \code{s1}, and host \code{h2} connects to \code{s2}. The direct link \verb|s1--s2| is the primary route and gives a three-hop path. When that link is down, traffic can go \code{h1 -> s1 -> s3 -> s2 -> h2}, which is one hop longer.
+
+The data flow through the tool is:
+
+\begin{verbatim}
+probe client/server -> diagnostic_result.json
+controller REST      -> topology.json -> paths.json
+flow tables          -> active path
+port and qdisc stats -> before/after counters
+             |
+             v
+      correlate.py -> correlation_report.json
+             |
+             +--> reroute_helper.py -> OpenFlow rules
+             |
+             +--> report_generator.py -> report.md / .html / .png
+\end{verbatim}
+
+The confidence model combines the evidence sources. A confirmed link disappearance or a matching direct qdisc drop is strong evidence and is reported with a high confidence. If only the path membership is known (the loss is on the path, but no counter points to one link), the result is reported as a heuristic with a lower confidence, currently 60\%.
+
+\phantomsection
+\addcontentsline{toc}{section}{Appendix C: To Be Determined List}
+\section*{Appendix C: To Be Determined List}
+Version 1.1 implements and verifies all core requirements. The following items are intentionally left for later work:
+\begin{itemize}
+  \item \textbf{TBD-1:} IPv6 probe targets and IPv6 flow match fields.
+  \item \textbf{TBD-2:} A long-running daemon mode that polls and reroutes without a manual command.
+  \item \textbf{TBD-3:} Larger topologies and multi-controller environments.
+  \item \textbf{TBD-4:} Per-segment probe responders on switch attachment points, so that a failure can be narrowed to a single segment without relying on controller polling.
+\end{itemize}
+
+\phantomsection
+\addcontentsline{toc}{section}{Appendix D: Requirement Traceability}
+\section*{Appendix D: Requirement Traceability}
+The seven expectations of the course problem statement map to the implementation as follows.
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{longtable}{|p{0.8cm}|p{4.6cm}|p{7.2cm}|}
+\hline
+\textbf{\#} & \textbf{Expectation} & \textbf{Main modules} \\
+\hline
+\endhead
+1 & UDP diagnostic probes & \code{probe_server.py}, \code{diagnostic_client.py} \\
+\hline
+2 & Measure round-trip time & \code{diagnostic_client.py} \\
+\hline
+3 & Detect packet loss & \code{diagnostic_client.py}, \code{probe_server.py} \\
+\hline
+4 & Path analysis & \code{path_analysis.py}, \code{flow_inspector.py} \\
+\hline
+5 & SDN topology discovery & \code{sdn_topology.py}, \code{topology_graph.py} \\
+\hline
+6 & Correlate measurements with paths & \code{flow_inspector.py}, \code{correlate.py} \\
+\hline
+7 & Identify failed paths and reroute & \code{correlate.py}, \code{reroute_helper.py} \\
+\hline
+\end{longtable}
+\end{center}
+
+\end{document}

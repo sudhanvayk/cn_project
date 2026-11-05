@@ -209,6 +209,12 @@ make real-scenarios
 - [`SUBMISSION_CHECKLIST.md`](SUBMISSION_CHECKLIST.md): acceptance criteria, expected outputs, and official evidence.
 - [`SETUP.md`](SETUP.md): Mininet, isolated Ryu virtualenv, and system setup guide.
 
+**Formal submission documents**
+- [`software_requirements_specification_for_sdnscope.pdf`](software_requirements_specification_for_sdnscope.pdf): IEEE 830 software requirements specification.
+- [`software_requirements_specification_for_sdnscope.tex`](software_requirements_specification_for_sdnscope.tex): LaTeX source for the SRS.
+- [`software_test_plan_for_sdnscope.pdf`](software_test_plan_for_sdnscope.pdf): IEEE 829 test plan.
+- [`software_test_plan_for_sdnscope.tex`](software_test_plan_for_sdnscope.tex): LaTeX source for the test plan.
+
 **Technical reference**
 - [`docs/DESIGN.md`](docs/DESIGN.md): architectural decisions, protocol formats, and mathematical formulas.
 - [`docs/schemas.md`](docs/schemas.md): JSON schemas for all telemetry packets, topology, and reports.

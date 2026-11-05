@@ -1,0 +1,457 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[a4paper,top=1.8cm,bottom=1.8cm,left=2.2cm,right=2.2cm]{geometry}
+\usepackage{helvet}
+\renewcommand{\familydefault}{\sfdefault}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage[hidelinks]{hyperref}
+\usepackage{xurl}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt}
+\setlength{\emergencystretch}{3em}
+\setlist[itemize]{topsep=2pt,itemsep=2pt,parsep=0pt}
+\setlist[enumerate]{topsep=2pt,itemsep=2pt,parsep=0pt}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\textit{Test Plan for SDNScope}}
+\fancyhead[R]{\small\textbf{Page \thepage}}
+\renewcommand{\headrulewidth}{0.4pt}
+
+\titleformat{\section}{\Large\bfseries}{\thesection.}{0.5cm}{}
+\titleformat{\subsection}{\large\bfseries}{\thesubsection}{0.5cm}{}
+
+\newcommand{\code}[1]{\texttt{\detokenize{#1}}}
+\newcommand{\fpath}[1]{{\def\UrlBreaks{\do\_\do\/\do\.\do\-}\path{#1}}}
+
+\begin{document}
+
+% ---------------------------------------------------------------------------
+% TITLE PAGE
+% ---------------------------------------------------------------------------
+\begin{titlepage}
+\vspace*{2cm}
+\noindent\rule{\textwidth}{1.5pt}
+\vspace{1.2cm}
+
+\begin{flushright}
+{\fontsize{26}{32}\selectfont\textbf{IEEE 829 Test Plan}}\\[20pt]
+{\fontsize{22}{28}\selectfont\textbf{SDNScope}}\\[8pt]
+{\fontsize{14}{18}\selectfont\textbf{Socket-Based Network Diagnostic and Path Analysis}}\\[4pt]
+{\fontsize{14}{18}\selectfont\textbf{Tool for Software-Defined Networks}}\\[30pt]
+{\fontsize{13}{16}\selectfont\textbf{Prepared by}}\\[4pt]
+{\fontsize{13}{16}\selectfont\textbf{Sudhanva Y K, Suhana A Ghosh, Siddhanth S}}\\[22pt]
+{\fontsize{13}{16}\selectfont\textbf{Computer Networks Project (cn\_project)}}\\[20pt]
+{\fontsize{13}{16}\selectfont\textbf{November 2026}}
+\end{flushright}
+
+\vfill
+\begin{center}
+{\footnotesize Test plan structure follows the IEEE 829 software test documentation standard.}
+\end{center}
+\end{titlepage}
+\setcounter{page}{2}
+
+\newpage
+
+% ---------------------------------------------------------------------------
+% 1. TEST PLAN IDENTIFIER
+% ---------------------------------------------------------------------------
+\section{Test Plan Identifier}
+\begin{itemize}
+  \item \textbf{Test Plan ID:} TP-SDNS-001
+  \item \textbf{Project:} SDNScope -- SDN diagnostic and path analysis tool
+  \item \textbf{Version:} 1.1
+  \item \textbf{Date:} 5 November 2026
+  \item \textbf{Prepared by:} Sudhanva Y K, Suhana A Ghosh, Siddhanth S
+\end{itemize}
+
+% ---------------------------------------------------------------------------
+% 2. REFERENCES
+% ---------------------------------------------------------------------------
+\section{References}
+\begin{enumerate}
+  \item \fpath{software_requirements_specification_for_sdnscope.tex} -- the requirements this plan verifies.
+  \item \code{docs/DESIGN.md} -- architecture and internal interfaces.
+  \item \code{docs/schemas.md} -- JSON formats used by the tests.
+  \item \code{TEST_CASES.md} -- the test case catalogue.
+  \item \code{TESTER_REPORT.md} and \code{BUG_REPORT.md} -- the tester's results and the defect found.
+  \item \code{docs/EVIDENCE.md} and \code{TEST_EVIDENCE/} -- captured transcripts and output files.
+  \item IEEE 829, \textit{IEEE Standard for Software Test Documentation}.
+  \item Project repository: \url{https://github.com/sudhanvayk/cn_project}.
+\end{enumerate}
+
+% ---------------------------------------------------------------------------
+% 3. INTRODUCTION
+% ---------------------------------------------------------------------------
+\section{Introduction}
+This document explains how SDNScope is tested and what counts as a pass. It covers two environments: the offline localhost demo, which needs no root access, and the live Mininet + Ryu testbed, which does.
+
+The goal is simple: prove that the tool measures delay and loss correctly, discovers the right topology, finds the right failed link, installs a working backup path, and produces readable evidence. The plan also records what is deliberately out of scope, so that nobody mistakes a skipped check for a passed one.
+
+% ---------------------------------------------------------------------------
+% 4. TEST ITEMS
+% ---------------------------------------------------------------------------
+\section{Test Items}
+The following items are tested:
+\begin{itemize}
+  \item UDP probe server (\code{probe_server.py}).
+  \item UDP probe client and statistics (\code{diagnostic_client.py}).
+  \item IP-layer trace and parser (\code{path_analysis.py}).
+  \item Controller topology discovery (\code{sdn_topology.py}).
+  \item Graph model and path ranking (\code{topology_graph.py}).
+  \item Flow-table path reconstruction (\code{flow_inspector.py}).
+  \item Correlation, localization, and backup ranking (\code{correlate.py}).
+  \item Reroute rule generation and deployment (\code{reroute_helper.py}).
+  \item Report generation (\code{report_generator.py}).
+  \item Unified CLI (\code{sdnscope.py}).
+  \item Mock controller and localhost demo (\code{mock_controller.py}, \fpath{scripts/demo_localhost.sh}).
+  \item Live scenario runner and cleanup (\fpath{topology/scenario_runner.py}, \fpath{scripts/run_all_scenarios.sh}).
+\end{itemize}
+
+% ---------------------------------------------------------------------------
+% 5. SOFTWARE RISK ISSUES
+% ---------------------------------------------------------------------------
+\section{Software Risk Issues}
+The main risks during testing are:
+\begin{itemize}
+  \item \textbf{Missing privileges.} Mininet and \code{tc} need root. If sudo is not available, the live scenarios cannot run and must be marked \code{NOT RUN}, not passed.
+  \item \textbf{Missing Ryu.} The controller must be installed and able to bind ports 6653 and 8080. A missing Ryu stops the live run at the start.
+  \item \textbf{Leftover state.} A failed run can leave \code{tc} rules, OpenFlow entries, or background servers behind and distort the next run. Cleanup is therefore part of the test.
+  \item \textbf{OpenFlow counters do not show qdisc drops.} Packets dropped by \code{netem} are not counted in the switch port drop counters. A test that only looks at OpenFlow would wrongly report zero drops. The qdisc capture exists to cover this gap.
+  \item \textbf{Mock and live behaviour can differ.} The mock controller is useful, but it is not proof of switch behaviour. Live results are reported separately.
+  \item \textbf{UDP is lossy by nature.} A single lost probe is not a failure. The tests use enough probes and a defined threshold so that the verdict is stable.
+  \item \textbf{Timing sensitivity.} A very short outage may start and end between controller polls. The tool must fall back to probe evidence instead of claiming a link event it did not see.
+\end{itemize}
+
+% ---------------------------------------------------------------------------
+% 6. FEATURES TO BE TESTED
+% ---------------------------------------------------------------------------
+\section{Features to be Tested}
+\begin{itemize}
+  \item Installing the project and its dependencies.
+  \item UDP probing, RTT statistics, jitter, and packet-loss measurement.
+  \item Artificial delay, partial loss, and total loss using the probe server.
+  \item Topology discovery from the mock controller and from Ryu.
+  \item Path enumeration for the diamond, including the primary and backup routes.
+  \item Flow-table reconstruction of the active path.
+  \item Health classification and failure localization.
+  \item Reroute rule generation, dry run, and live installation.
+  \item Markdown, HTML, and PNG report generation.
+  \item Input validation and error handling.
+  \item Repeatability and cleanup after a run.
+  \item The complete four-scenario live run: healthy, degraded, failed, and recovery.
+\end{itemize}
+
+% ---------------------------------------------------------------------------
+% 7. FEATURES NOT TO BE TESTED
+% ---------------------------------------------------------------------------
+\section{Features not to be Tested}
+\begin{itemize}
+  \item The internal code of Ryu, Open vSwitch, Mininet, or the Linux kernel.
+  \item Real physical switches, real routers, or a production network.
+  \item IPv6, which the current release does not support.
+  \item Multi-controller setups and topologies larger than the three-switch diamond.
+  \item Long-duration soak testing or high-load stress testing.
+  \item Security penetration testing beyond input validation and local binding.
+\end{itemize}
+
+% ---------------------------------------------------------------------------
+% 8. APPROACH
+% ---------------------------------------------------------------------------
+\section{Approach}
+Testing is done in four layers, from smallest to largest.
+
+\begin{enumerate}
+  \item \textbf{Unit tests.} Each parser, statistic, graph function, and rule generator is tested with fixed inputs. These tests are fast and do not need a network.
+  \item \textbf{Integration tests.} The probe server and client are run together over loopback. The mock controller is used to test discovery, correlation, and reroute generation.
+  \item \textbf{System tests.} \code{make demo} runs the complete localhost workflow in one command: topology, paths, probe, trace, correlation, reroute, and report.
+  \item \textbf{Live system tests.} \code{make real-check} checks the environment, then \code{make real-scenarios} runs the four scenarios on Mininet with Ryu and captures the evidence.
+\end{enumerate}
+
+The automated suite is run with \code{make test}. Static analysis is run with \code{make lint}. Live results are accepted only when the environment file, the probe JSON, the correlation report, and the reports are all present in the run directory.
+
+% ---------------------------------------------------------------------------
+% 9. ITEM PASS/FAIL CRITERIA
+% ---------------------------------------------------------------------------
+\section{Item Pass/Fail Criteria}
+A test case passes when the actual output matches the expected output and the supporting artifact exists. A test case fails when the output differs, when the command exits with an unexpected error, or when the expected evidence is missing.
+
+\code{NOT RUN} is a separate status. It means the environment could not support the test. It is never counted as a pass. For example, if Ryu is not installed, the live scenario tests are \code{NOT RUN}; they become pass only after the live run has actually completed.
+
+% ---------------------------------------------------------------------------
+% 10. SUSPENSION CRITERIA AND RESUMPTION REQUIREMENTS
+% ---------------------------------------------------------------------------
+\section{Suspension Criteria and Resumption Requirements}
+Testing is suspended if:
+\begin{itemize}
+  \item Mininet, Open vSwitch, or Ryu cannot start, or the required ports are already in use.
+  \item A scenario leaves \code{tc} rules or OpenFlow entries behind after cleanup.
+  \item A crash prevents the JSON result from being written.
+  \item The machine runs out of disk space or memory during a live run.
+\end{itemize}
+
+Testing resumes after the cause is fixed and the environment has been checked again with \code{make real-check}. Any run that was interrupted is discarded rather than reported as a partial pass.
+
+% ---------------------------------------------------------------------------
+% 11. TEST DELIVERABLES
+% ---------------------------------------------------------------------------
+\section{Test Deliverables}
+\begin{itemize}
+  \item This test plan.
+  \item The test case catalogue (\code{TEST_CASES.md}).
+  \item The tester's report (\code{TESTER_REPORT.md}).
+  \item The bug report (\code{BUG_REPORT.md}).
+  \item The evidence index and captured files (\code{TEST_EVIDENCE/}).
+  \item The four-scenario live results in \fpath{results/real_20261105_222258/} and the earlier repeat in \fpath{results/real_20261105_150848/}.
+  \item The live CLI transcript (\fpath{TEST_EVIDENCE/live_cli_verification_20261105.txt}).
+  \item The final test summary, which is Section 19 of this document.
+\end{itemize}
+
+% ---------------------------------------------------------------------------
+% 12. REMAINING TEST TASKS
+% ---------------------------------------------------------------------------
+\section{Remaining Test Tasks}
+The current release is tested for the diamond topology and the documented scenarios. The following work remains for later releases:
+\begin{itemize}
+  \item Regression testing after any change to the correlation rules or the reroute helper.
+  \item IPv6 testing, once IPv6 support is added.
+  \item Larger and multi-controller topologies.
+  \item A longer soak test to check memory and file-handle behaviour.
+  \item Per-segment probing, once responders are available.
+\end{itemize}
+
+% ---------------------------------------------------------------------------
+% 13. ENVIRONMENTAL NEEDS
+% ---------------------------------------------------------------------------
+\section{Environmental Needs}
+
+\subsection*{Hardware}
+\begin{itemize}
+  \item A Linux machine or virtual machine with at least 4 GB of RAM. The reference live runs used an Ubuntu host with a working Mininet installation.
+  \item A terminal with sudo access for Mininet and \code{tc}.
+\end{itemize}
+
+\subsection*{Software}
+\begin{itemize}
+  \item Ubuntu 22.04, 24.04, or 26.04 (the latest live run used Ubuntu 26.04).
+  \item Python 3.10 to 3.14. The latest live run used Python 3.14.4; CI covers the full range.
+  \item Mininet 2.3.0.
+  \item Open vSwitch 3.7.1.
+  \item Ryu 4.34, started with \code{ryu.app.ofctl_rest}, \code{ryu.app.rest_topology}, and \fpath{ryu.app.simple_switch_13}.
+  \item \code{iproute2} for \code{tc qdisc netem}.
+  \item The Python packages in \code{requirements.txt} and \code{requirements-dev.txt}.
+\end{itemize}
+
+\subsection*{Ports}
+\begin{itemize}
+  \item TCP 8080 for the Ryu REST API.
+  \item TCP 6653 for OpenFlow (6633 is also accepted).
+  \item UDP 9999 for the probe service.
+  \item TCP 8181 only if OpenDaylight is used; it is not used in the default test setup.
+\end{itemize}
+
+% ---------------------------------------------------------------------------
+% 14. STAFFING AND TRAINING NEEDS
+% ---------------------------------------------------------------------------
+\section{Staffing and Training Needs}
+The work was divided between two developers and one tester:
+\begin{itemize}
+  \item The developers wrote the modules, scripts, tests, and documentation, and fixed defects found during testing.
+  \item The tester installed the project from scratch, ran the automated and manual cases, captured the evidence, and wrote the tester report and bug report.
+\end{itemize}
+
+A tester needs basic Linux command-line skills and enough Python to read an error message. Understanding Mininet and OpenFlow helps with the live scenarios, but the offline demo can be run without that knowledge.
+
+% ---------------------------------------------------------------------------
+% 15. RESPONSIBILITIES
+% ---------------------------------------------------------------------------
+\section{Responsibilities}
+\begin{itemize}
+  \item \textbf{Developers:} implement the features, keep the tests green, and fix reported defects.
+  \item \textbf{Tester:} design and execute the test cases, record actual results, and keep the evidence files.
+  \item \textbf{Project guide or instructor:} review the plan, check the evidence, and approve the final result.
+\end{itemize}
+
+% ---------------------------------------------------------------------------
+% 16. SCHEDULE
+% ---------------------------------------------------------------------------
+\section{Schedule}
+\begin{center}
+\renewcommand{\arraystretch}{1.35}
+\begin{tabular}{|p{6.2cm}|p{3.0cm}|p{3.2cm}|}
+\hline
+\textbf{Task} & \textbf{Date} & \textbf{Duration} \\
+\hline
+Requirements and first implementation & 19 Oct 2026 & 6 days \\
+\hline
+Live topology verification and first full run & 25 Oct 2026 & 1 day \\
+\hline
+Test case design and offline test execution & 2 Nov 2026 & 2 days \\
+\hline
+Bug fix and regression check & 2 Nov 2026 & 1 day \\
+\hline
+Live four-scenario validation and evidence capture & 5 Nov 2026 & 1 day \\
+\hline
+Final review of documents and evidence & 5 Nov 2026 & 1 day \\
+\hline
+\end{tabular}
+\end{center}
+
+% ---------------------------------------------------------------------------
+% 17. PLANNING RISKS AND CONTINGENCIES
+% ---------------------------------------------------------------------------
+\section{Planning Risks and Contingencies}
+\begin{itemize}
+  \item \textbf{No Ryu or no sudo.} The offline demo and the 82-test suite still run. The live cases are marked \code{NOT RUN} and completed later on a machine that has the tools.
+  \item \textbf{Flaky packet loss.} The probes use a fixed count and a timeout, and the verdict uses thresholds rather than a single packet. A run that looks unstable is repeated and the repeat is kept as evidence.
+  \item \textbf{Large result folders.} The run directories are kept small by storing text and JSON outputs; log files are excluded from version control.
+  \item \textbf{Machine differences.} The environment file in each run records the OS, Python, Mininet, OVS, and Ryu versions, so a result can be compared fairly with another run.
+\end{itemize}
+
+% ---------------------------------------------------------------------------
+% 18. TEST CASE SPECIFICATION
+% ---------------------------------------------------------------------------
+\section{Test Case Specification}
+The table below lists the cases that were executed. The ``Actual result'' column is copied from the captured evidence, not invented.
+
+The tester's first pass on 2 November recorded the live case as \code{NOT RUN} because Ryu was not installed in that environment. The case was executed later, on 5 November, and that later run is the evidence used here.
+
+{\small
+\renewcommand{\arraystretch}{1.25}
+\begin{longtable}{|>{\raggedright\arraybackslash}p{2.6cm}|>{\raggedright\arraybackslash}p{3.4cm}|>{\raggedright\arraybackslash}p{2.9cm}|>{\raggedright\arraybackslash}p{3.3cm}|>{\centering\arraybackslash}p{1.3cm}|}
+\hline
+\textbf{ID} & \textbf{Description} & \textbf{Expected result} & \textbf{Actual result} & \textbf{Status} \\
+\hline
+\endhead
+ENV-01 & Run \code{make install} on a clean checkout. & Virtual environment created and all packages installed. & Completed with Python 3.12.7 in the tester run and 3.14.4 in the live run. & PASS \\
+\hline
+AUTO-01 & Run \code{make test}. & All unit and integration tests pass. & 82 passed, 0 failed, 68\% total coverage. & PASS \\
+\hline
+AUTO-02 & Run \code{make lint}. & Ruff reports no findings. & \code{All checks passed!} & PASS \\
+\hline
+AUTO-03 & Compile the project sources. & No syntax errors. & Compilation exited with code 0. & PASS \\
+\hline
+DEMO-01 & Run \code{make run} twice. & The full localhost workflow succeeds both times. & Both runs completed: topology, paths, probe, trace, correlation, reroute, and reports. & PASS \\
+\hline
+TOPO-01 & Discover the mock controller's healthy topology. & 5 nodes and 5 links. & 5 nodes and 5 links. & PASS \\
+\hline
+PATH-01 & Enumerate the paths from h1 to h2. & Primary 3-hop and backup 4-hop paths. & \code{h1-s1-s2-h2} and \code{h1-s1-s3-s2-h2}. & PASS \\
+\hline
+UDP-01 & Send 10 normal probes over loopback. & Replies received and RTT reported. & 10 sent, 10 received, 0\% loss. & PASS \\
+\hline
+UDP-02 & Send 5 probes with a 30 ms server delay. & Mean RTT close to or above 30 ms. & 5 of 5 received; mean RTT 30.696 ms. & PASS \\
+\hline
+UDP-03 & Send 20 probes with a 40\% drop rate. & Non-zero measured loss. & 11 received, 9 lost, 45\% measured loss. & PASS \\
+\hline
+UDP-04 & Send 3 burst probes with a 100\% drop rate. & 100\% loss and no RTT value. & 0 received, 3 lost, 100\% loss, no RTT metrics. & PASS \\
+\hline
+COR-01 & Correlate a full-loss probe with the failed mock topology. & Failed path and the missing primary link identified. & \code{FAILED_PATH}; \code{s1-s2} at 100\% from topology liveness. & PASS \\
+\hline
+ROUTE-01 & Generate a reroute for the failed path. & Rules use the real destination address and are accepted. & 12 IPv4 and ARP rules submitted; targets use 10.0.0.2 after the fix. & PASS \\
+\hline
+REPORT-01 & Generate the localhost reports. & Valid JSON, Markdown, HTML, and PNG files. & JSON parsed; Markdown and HTML were readable; PNG was a valid image. & PASS \\
+\hline
+INPUT-01 & Run \code{probe not-an-ip -c 1}. & Non-zero exit and a short validation error. & Non-zero exit; \code{[ERROR] Invalid IPv4 address: 'not-an-ip'}. & PASS \\
+\hline
+CLEAN-01 & Repeat the demo and inspect services. & Second run succeeds and no listeners remain. & Repeat succeeded; ports were released; demo files were restored. & PASS \\
+\hline
+REAL-01 & Run the four live scenarios on Mininet with Ryu. & Healthy, degraded, failed, and recovery verdicts with evidence. & Completed on 5 Nov 2026. Degraded: 8.00\% loss, 66.33 ms, 95\% localization from 17 qdisc drops. Recovery: 0\% loss on the backup path. & PASS \\
+\hline
+\end{longtable}
+}
+
+% ---------------------------------------------------------------------------
+% 19. TEST EXECUTION SUMMARY
+% ---------------------------------------------------------------------------
+\section{Test Execution Summary}
+\begin{center}
+\renewcommand{\arraystretch}{1.35}
+\begin{tabular}{|p{7.0cm}|p{5.0cm}|}
+\hline
+\textbf{Item} & \textbf{Value} \\
+\hline
+Test cases designed & 17 \\
+\hline
+Test cases executed & 17 \\
+\hline
+Test cases passed & 17 \\
+\hline
+Test cases failed & 0 \\
+\hline
+Test cases not run at the end & 0 \\
+\hline
+Success rate & 100\% \\
+\hline
+Automated unit and integration tests & 82 passed \\
+\hline
+Total measured coverage & 68\% \\
+\hline
+Bugs found and fixed & 1 (reroute destination address) \\
+\hline
+Unresolved bugs & 0 \\
+\hline
+\end{tabular}
+\end{center}
+
+The live measurements from the latest four-scenario run are:
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|c|c|c|c|}
+\hline
+\textbf{Scenario} & \textbf{Probes (sent / received)} & \textbf{Loss} & \textbf{Mean RTT} & \textbf{Result} \\
+\hline
+Healthy & 50 / 50 & 0.00\% & 9.68 ms & \code{HEALTHY_PATH} \\
+\hline
+Degraded & 100 / 92 & 8.00\% & 66.33 ms & \code{DEGRADED_PATH} \\
+\hline
+Failed & 20 / 0 & 100.00\% & -- & \code{FAILED_PATH} \\
+\hline
+Recovery before reroute & 20 / 0 & 100.00\% & -- & \code{FAILED_PATH} \\
+\hline
+Recovery after reroute & 50 / 50 & 0.00\% & 14.29 ms & \code{HEALTHY_PATH} \\
+\hline
+\end{tabular}
+\end{center}
+
+The degraded run localized \verb|s1 <---> s2| at 95.0\% using 17 kernel qdisc drops (10 on \code{s1-eth2} and 7 on \code{s2-eth2}). The earlier run on the same day independently produced the same 95.0\% result from 19 drops.
+
+% ---------------------------------------------------------------------------
+% 20. CONCLUSION
+% ---------------------------------------------------------------------------
+\section{Conclusion}
+All planned test cases were executed and passed. The automated suite is green, the localhost demo completes end to end, and the four live scenarios produce the expected verdicts with saved evidence.
+
+The tool does what the project set out to do: it measures delay and loss, discovers the SDN topology, finds the active path from the flow tables, identifies the failed link, and restores connectivity over the backup route. The remaining limitations are stated openly: IPv4 only, one controller, one small topology, and no production-hardware testing.
+
+% ---------------------------------------------------------------------------
+% 21. APPROVALS
+% ---------------------------------------------------------------------------
+\section{Approvals}
+\begin{center}
+\renewcommand{\arraystretch}{2.0}
+\begin{tabular}{|p{5.2cm}|p{4.0cm}|p{4.0cm}|}
+\hline
+\textbf{Name} & \textbf{Role} & \textbf{Signature / Date} \\
+\hline
+Sudhanva Y K & Developer & \\
+\hline
+Suhana A Ghosh & Developer & \\
+\hline
+Siddhanth S & Tester & \\
+\hline
+Project Guide & Reviewer & \\
+\hline
+\end{tabular}
+\end{center}
+
+\end{document}
