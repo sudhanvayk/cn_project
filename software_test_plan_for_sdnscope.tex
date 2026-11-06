@@ -326,7 +326,7 @@ Final review of documents and evidence & 5 Nov 2026 & 1 day \\
 \section{Test Case Specification}
 The table below lists the cases that were executed. The ``Actual result'' column is copied from the captured evidence, not invented.
 
-The tester's first pass on 2 November recorded the live case as \code{NOT RUN} because Ryu was not installed in that environment. The case was executed later, on 5 November, and that later run is the evidence used here.
+An early pass on 2 November could not execute the live case because Ryu was not installed in that environment. The case was executed later, on 5 November; the table reports that final result, and no case remains \code{NOT RUN}.
 
 {\small
 \renewcommand{\arraystretch}{1.25}
@@ -405,6 +405,8 @@ Unresolved bugs & 0 \\
 \end{tabular}
 \end{center}
 
+The final automated run executed 82 unit and integration tests through \code{make test}; all 82 passed with 0 failures, and pytest-cov measured 68\% total code coverage. \code{make lint} reported no findings. The latest live run used Ubuntu 26.04, Python 3.14.4, Mininet 2.3.0, Open vSwitch 3.7.1, and Ryu 4.34, and executed all four scenarios (Healthy, Degraded, Failed, and Recovery) on the real Mininet testbed.
+
 The live measurements from the latest four-scenario run are:
 
 \begin{center}
@@ -427,6 +429,23 @@ Recovery after reroute & 50 / 50 & 0.00\% & 14.29 ms & \code{HEALTHY_PATH} \\
 \end{center}
 
 The degraded run localized \verb|s1 <---> s2| at 95.0\% using 17 kernel qdisc drops (10 on \code{s1-eth2} and 7 on \code{s2-eth2}). The earlier run on the same day independently produced the same 95.0\% result from 19 drops.
+
+\subsection{Defect Found and Fixed: BUG-001}
+Testing found one real defect in the reroute path. When a correlation report came from the localhost demo, its \code{destination_ip} was \code{127.0.0.1}. The reroute helper used that loopback address as the match target instead of the topology destination \code{10.0.0.2}. The mock controller accepted the rules, so the defect could only be caught by inspecting the generated match fields.
+
+The tester reproduced the defect with a focused regression test before the fix; the test failed with the actual target \code{127.0.0.1}. The developers added a shared resolver that replaces a loopback value with the selected destination node's topology IP. After the fix the regression test passed, and both the standalone helper and the unified CLI generated IPv4 and ARP rules targeting \code{10.0.0.2}. All 12 generated rules were accepted by the mock controller. The full suite then passed with 82 tests, and the defect is closed with no unresolved bugs. The complete reproduction and fix are recorded in \code{BUG_REPORT.md}.
+
+\subsection{Changes from the Previous Test Plan}
+The earlier draft of this plan did not reflect the completed testing work. This version corrects that in seven ways:
+\begin{enumerate}
+  \item The live test is no longer reported as \code{NOT RUN}. All 17 planned cases were executed, and all 17 passed.
+  \item The plan now reports the actual automated result: 82 unit and integration tests passed with 0 failures.
+  \item It records the measured code coverage of 68\%.
+  \item It includes the real Mininet 2.3.0 and Ryu 4.34 test results, including the live CLI transcript.
+  \item It covers all four live scenarios in one run: Healthy, Degraded, Failed, and Recovery.
+  \item It documents the rerouting defect (BUG-001) that was found and fixed during testing.
+  \item It names the team members and states their responsibilities.
+\end{enumerate}
 
 % ---------------------------------------------------------------------------
 % 20. CONCLUSION
